@@ -319,6 +319,51 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                   : 'Đã có tài khoản? Quay lại màn hình đăng nhập'}
               </button>
             </div>
+
+            <div className="relative py-2">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-200 dark:border-slate-800" />
+              </div>
+              <div className="relative flex justify-center text-[10px] uppercase">
+                <span className="bg-white dark:bg-slate-900 px-2 text-slate-400 font-semibold">
+                  Hoặc trải nghiệm nhanh
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="justify-center text-xs"
+                onClick={async () => {
+                  try {
+                    await authService.loginAsDemo();
+                    toast.success('Đã đăng nhập bằng tài khoản Demo học viên!');
+                    triggerDataRefresh();
+                    onClose();
+                  } catch (e: any) {
+                    toast.error('Không thể đăng nhập tài khoản Demo');
+                  }
+                }}
+              >
+                🎓 Tài khoản Demo
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="justify-center text-xs text-slate-600 dark:text-slate-400"
+                onClick={() => {
+                  onClose();
+                  toast.info('Bạn đang xem ở chế độ Khách. Nhấn "Đăng nhập" ở góc phải bất kỳ lúc nào để lưu dữ liệu.');
+                }}
+              >
+                👀 Xem trước giao diện
+              </Button>
+            </div>
           </div>
         </form>
       </div>

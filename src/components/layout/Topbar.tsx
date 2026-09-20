@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Bell,
   Command,
   Laptop,
   LogIn,
+  LogOut,
   Menu,
   Moon,
   Search,
@@ -15,7 +16,8 @@ import { useStudy } from '../../context/StudyContext';
 import { useTheme } from '../../context/ThemeContext';
 import { Dropdown } from '../common/Dropdown';
 import { Tooltip } from '../common/Tooltip';
-import { AuthModal } from '../auth/AuthModal';
+import { UserAvatar } from '../common/UserAvatar';
+import { authService } from '../../services/authService';
 
 interface TopbarProps {
   onMobileMenuToggle: () => void;
@@ -44,9 +46,12 @@ export const Topbar: React.FC<TopbarProps> = ({ onMobileMenuToggle }) => {
     unreadNotifsCount,
     setIsNotificationDrawerOpen,
     navigateTo,
+    isAuthenticated,
+    currentUser,
+    setIsAuthModalOpen,
+    triggerDataRefresh,
   } = useStudy();
   const { mode, setMode } = useTheme();
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   const currentMeta = TAB_NAMES[activeTab] || { title: 'StudyOS', subtitle: 'Personal Workspace' };
 
@@ -143,41 +148,69 @@ export const Topbar: React.FC<TopbarProps> = ({ onMobileMenuToggle }) => {
         </Tooltip>
 
         {/* Profile Avatar & Menu */}
-        <Dropdown
-          align="right"
-          trigger={
-            <div className="flex items-center gap-2 cursor-pointer p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
-                NL
+        {isAuthenticated ? (
+          <Dropdown
+            align="right"
+            trigger={
+              <div className="flex items-center gap-2 cursor-pointer p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                <UserAvatar
+                  avatarUrl={currentUser?.avatarUrl}
+                  name={currentUser?.name}
+                  size="sm"
+                />
               </div>
+            }
+            items={[
+              {
+                label: currentUser?.name || 'Học viên StudyOS',
+                icon: <User className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />,
+                onClick: () => navigateTo('profile'),
+              },
+              {
+                label: 'Cài đặt hệ thống',
+                icon: <Settings className="w-4 h-4" />,
+                onClick: () => navigateTo('settings'),
+              },
+              {
+                label: 'Đổi tài khoản',
+                icon: <LogIn className="w-4 h-4" />,
+                onClick: () => setIsAuthModalOpen(true),
+              },
+              { divider: true, label: '' },
+              {
+                label: 'Trợ giúp & Phím tắt',
+                onClick: () => setIsCommandPaletteOpen(true),
+              },
+              {
+                label: 'Đăng xuất',
+                icon: <LogOut className="w-4 h-4 text-rose-500" />,
+                onClick: () => {
+                  authService.logout();
+                  triggerDataRefresh();
+                },
+              },
+            ]}
+          />
+        ) : (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsAuthModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors shadow-xs"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Đăng nhập</span>
+            </button>
+            <div
+              onClick={() => setIsAuthModalOpen(true)}
+              className="cursor-pointer p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title="Đăng nhập / Đăng ký"
+            >
+              <UserAvatar preferIcon={true} size="sm" />
             </div>
-          }
-          items={[
-            {
-              label: 'Hồ sơ sinh viên',
-              icon: <User className="w-4 h-4" />,
-              onClick: () => navigateTo('profile'),
-            },
-            {
-              label: 'Cài đặt hệ thống',
-              icon: <Settings className="w-4 h-4" />,
-              onClick: () => navigateTo('settings'),
-            },
-            {
-              label: 'Đổi tài khoản / Đăng nhập',
-              icon: <LogIn className="w-4 h-4" />,
-              onClick: () => setIsAuthModalOpen(true),
-            },
-            { divider: true, label: '' },
-            {
-              label: 'Trợ giúp & Phím tắt',
-              onClick: () => setIsCommandPaletteOpen(true),
-            },
-          ]}
-        />
+          </div>
+        )}
       </div>
-
-      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
     </header>
   );
 };

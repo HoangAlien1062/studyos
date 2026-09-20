@@ -21,6 +21,7 @@ import {
 import { NavigationTab } from '../../types/common';
 import { useStudy } from '../../context/StudyContext';
 import { Tooltip } from '../common/Tooltip';
+import { UserAvatar } from '../common/UserAvatar';
 
 interface SidebarProps {
   isMobileOpen: boolean;
@@ -51,8 +52,8 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onMobileClose }) => {
-  const { activeTab, navigateTo } = useStudy();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const { activeTab, navigateTo, isAuthenticated, currentUser, setIsAuthModalOpen } = useStudy();
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
 
   const handleNavClick = (tab: NavigationTab) => {
     navigateTo(tab);
@@ -154,21 +155,32 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onMobileClose })
       <div className="p-3 border-t border-slate-100 dark:border-slate-800">
         <button
           type="button"
-          onClick={() => handleNavClick('profile')}
+          onClick={() => {
+            if (isAuthenticated) {
+              handleNavClick('profile');
+            } else {
+              setIsAuthModalOpen(true);
+            }
+          }}
           className={`w-full flex items-center gap-3 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left ${
             isCollapsed ? 'justify-center !p-1' : ''
           }`}
         >
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-indigo-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
-            NL
-          </div>
+          <UserAvatar
+            avatarUrl={isAuthenticated ? currentUser?.avatarUrl : undefined}
+            name={isAuthenticated ? currentUser?.name : undefined}
+            preferIcon={!isAuthenticated}
+            size="sm"
+          />
           {!isCollapsed && (
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
-                Hoàng Long
+                {isAuthenticated ? (currentUser?.name || 'Học viên StudyOS') : 'Chưa đăng nhập'}
               </p>
               <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
-                CNTT & Trí tuệ Nhân tạo
+                {isAuthenticated
+                  ? (currentUser?.major || currentUser?.school || currentUser?.gradeOrYear || 'Học viên')
+                  : 'Nhấn để đăng nhập / đăng ký'}
               </p>
             </div>
           )}

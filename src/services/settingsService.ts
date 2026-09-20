@@ -22,13 +22,13 @@ export const settingsService = {
             const profile = await authService.getProfile();
             const full: FullAppSettings = {
               profile: {
-                name: profile.name,
-                email: profile.email,
-                avatarUrl: profile.avatarUrl || '',
-                school: profile.school,
-                major: profile.major,
-                studentId: profile.studentId,
-                bio: profile.bio,
+                name: profile?.name || '',
+                email: profile?.email || '',
+                avatarUrl: profile?.avatarUrl || '',
+                school: profile?.school || '',
+                major: profile?.major || '',
+                studentId: profile?.studentId || '',
+                bio: profile?.bio || '',
               },
               general: data.general || INITIAL_FULL_SETTINGS.general,
               appearance: data.appearance || INITIAL_FULL_SETTINGS.appearance,
@@ -44,7 +44,22 @@ export const settingsService = {
         console.warn('[Supabase Online] Error loading user settings:', err);
       }
     }
-    return storage.get<FullAppSettings>(SETTINGS_KEY, INITIAL_FULL_SETTINGS);
+    const stored = storage.get<FullAppSettings>(SETTINGS_KEY, INITIAL_FULL_SETTINGS);
+    const authUser = authService.getCurrentUser();
+    if (authUser) {
+      stored.profile = {
+        name: authUser.name,
+        email: authUser.email,
+        avatarUrl: authUser.avatarUrl !== undefined ? authUser.avatarUrl : (stored.profile?.avatarUrl || ''),
+        school: authUser.school || stored.profile?.school || '',
+        major: authUser.major || stored.profile?.major || '',
+        studentId: authUser.studentId || stored.profile?.studentId || '',
+        bio: authUser.bio || stored.profile?.bio || '',
+        educationLevel: authUser.educationLevel || stored.profile?.educationLevel,
+        gradeOrYear: authUser.gradeOrYear || stored.profile?.gradeOrYear,
+      };
+    }
+    return stored;
   },
 
   async saveSettings(settings: FullAppSettings): Promise<FullAppSettings> {

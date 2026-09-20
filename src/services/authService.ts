@@ -145,6 +145,7 @@ export const authService = {
         major: profile?.major || 'Khoa học Máy tính',
         studentId: profile?.student_id || '',
         bio: profile?.bio || '',
+        avatarUrl: profile?.avatar_url || '',
       };
 
       storage.set(USER_STORAGE_KEY, user);
@@ -154,17 +155,40 @@ export const authService = {
       };
     }
 
-    const current = (await this.getProfile()) || DEMO_USER;
-    const localUser: UserAccount = {
-      ...current,
-      email,
-      name: current.name && current.name !== 'Nguyễn Văn An' ? current.name : (email.split('@')[0] || 'Học viên StudyOS'),
-    };
+    const current = (await this.getProfile());
+    const localUser: UserAccount = current
+      ? {
+          ...current,
+          email,
+          name: current.name || (email.split('@')[0] || 'Học viên StudyOS'),
+        }
+      : {
+          id: `user-${Date.now()}`,
+          email,
+          name: email.split('@')[0] || 'Học viên StudyOS',
+          educationLevel: 'university',
+          gradeOrYear: 'Năm 2',
+          school: 'Đại học Bách Khoa',
+          major: 'Khoa học Máy tính',
+          studentId: '',
+          bio: '',
+          avatarUrl: '',
+        };
+
     storage.set(USER_STORAGE_KEY, localUser);
     return { token: 'demo-token', user: localUser };
   },
 
-  async getProfile(): Promise<UserAccount> {
+  async loginAsDemo(): Promise<AuthResponse> {
+    storage.set(USER_STORAGE_KEY, DEMO_USER);
+    return { token: 'demo-token', user: DEMO_USER };
+  },
+
+  getCurrentUser(): UserAccount | null {
+    return storage.get<UserAccount | null>(USER_STORAGE_KEY, null);
+  },
+
+  async getProfile(): Promise<UserAccount | null> {
     if (supabase && isSupabaseConfigured) {
       const { data: authData } = await supabase.auth.getUser();
       if (authData?.user) {
@@ -179,30 +203,47 @@ export const authService = {
             id: profile.id,
             email: profile.email,
             name: profile.name,
+            educationLevel: profile.education_level || 'university',
+            gradeOrYear: profile.grade_or_year || 'Năm 2',
             school: profile.school || '',
             major: profile.major || '',
             studentId: profile.student_id || '',
             bio: profile.bio || '',
+            avatarUrl: profile.avatar_url || '',
           };
         }
       }
     }
-    return storage.get<UserAccount>(USER_STORAGE_KEY, DEMO_USER);
+    return storage.get<UserAccount | null>(USER_STORAGE_KEY, null);
   },
 
   async updateProfile(profile: Partial<UserAccount>): Promise<UserAccount> {
-    const current = await this.getProfile();
-    const updated = { ...current, ...profile };
+    const current = (await this.getProfile()) || {
+      id: `user-${Date.now()}`,
+      email: 'student@studyos.edu.vn',
+      name: 'Học viên StudyOS',
+      educationLevel: 'university',
+      gradeOrYear: 'Năm 2',
+      school: '',
+      major: '',
+      studentId: '',
+      bio: '',
+      avatarUrl: '',
+    };
+    const updated: UserAccount = { ...current, ...profile };
 
     if (supabase && isSupabaseConfigured) {
       await supabase.from('users').upsert({
         id: updated.id,
         email: updated.email,
         name: updated.name,
+        education_level: updated.educationLevel,
+        grade_or_year: updated.gradeOrYear,
         school: updated.school,
         major: updated.major,
         student_id: updated.studentId,
         bio: updated.bio,
+        avatar_url: updated.avatarUrl,
       });
     }
 
@@ -222,8 +263,6 @@ export const authService = {
   },
 
   async ensureDefaultAuth(): Promise<void> {
-    if (!storage.get<UserAccount | null>(USER_STORAGE_KEY, null)) {
-      storage.set(USER_STORAGE_KEY, DEMO_USER);
-    }
+    // Unauthenticated users are not auto-logged in so they see login requirement
   },
 };

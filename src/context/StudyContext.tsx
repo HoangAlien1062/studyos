@@ -11,6 +11,8 @@ import { examService } from '../services/examService';
 import { mistakeService } from '../services/mistakeService';
 import { aiService } from '../services/aiService';
 
+import { authService, UserAccount } from '../services/authService';
+
 interface StudyContextType {
   activeTab: NavigationTab;
   setActiveTab: (tab: NavigationTab) => void;
@@ -21,6 +23,10 @@ interface StudyContextType {
   setIsCommandPaletteOpen: (open: boolean) => void;
   isNotificationDrawerOpen: boolean;
   setIsNotificationDrawerOpen: (open: boolean) => void;
+  isAuthModalOpen: boolean;
+  setIsAuthModalOpen: (open: boolean) => void;
+  isAuthenticated: boolean;
+  currentUser: UserAccount | null;
   unreadNotifsCount: number;
   refreshUnreadNotifs: () => Promise<void>;
   globalSearchItems: SearchResultItem[];
@@ -36,6 +42,9 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [selectedTargetId, setSelectedTargetId] = useState<string | undefined>(undefined);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
   const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState<boolean>(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(() => !authService.isAuthenticated());
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => authService.getCurrentUser());
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => authService.isAuthenticated());
   const [unreadNotifsCount, setUnreadNotifsCount] = useState<number>(2);
   const [globalSearchItems, setGlobalSearchItems] = useState<SearchResultItem[]>([]);
   const [dataVersion, setDataVersion] = useState<number>(0);
@@ -200,11 +209,10 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   useEffect(() => {
-    // Ensure default authentication
-    import('../services/authService').then(m => m.authService.ensureDefaultAuth()).then(() => {
-      refreshUnreadNotifs();
-      refreshSearchIndex();
-    });
+    setCurrentUser(authService.getCurrentUser());
+    setIsAuthenticated(authService.isAuthenticated());
+    refreshUnreadNotifs();
+    refreshSearchIndex();
   }, [dataVersion]);
 
   // Lắng nghe phím tắt Ctrl + K toàn cục
@@ -231,6 +239,10 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setIsCommandPaletteOpen,
         isNotificationDrawerOpen,
         setIsNotificationDrawerOpen,
+        isAuthModalOpen,
+        setIsAuthModalOpen,
+        isAuthenticated,
+        currentUser,
         unreadNotifsCount,
         refreshUnreadNotifs,
         globalSearchItems,

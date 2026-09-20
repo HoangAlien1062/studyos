@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 export interface ModalProps {
@@ -47,11 +48,11 @@ export const Modal: React.FC<ModalProps> = ({
     full: 'max-w-[95vw] h-[90vh]',
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -100,6 +101,7 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

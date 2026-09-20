@@ -11,6 +11,7 @@ import {
   Sparkles,
   User,
   UserPlus,
+  X,
 } from 'lucide-react';
 import { useStudy } from '../../context/StudyContext';
 import { useToast } from '../../context/ToastContext';
@@ -107,7 +108,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       title=""
       size="md"
     >
-      <div className="pt-1 space-y-5">
+      <div className="pt-1 space-y-5 relative">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-0 right-0 p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          title="Đóng"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
         {/* Header Branding */}
         <div className="text-center space-y-1">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 mb-1 border border-indigo-100 dark:border-indigo-900/50 shadow-xs">

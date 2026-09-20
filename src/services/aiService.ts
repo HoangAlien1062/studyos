@@ -163,7 +163,7 @@ export const aiService = {
         console.warn('[Supabase Online] Error loading conversations:', err);
       }
     }
-    const list = storage.get<AIConversation[]>(AI_CONVERSATIONS_KEY, INITIAL_CONVERSATIONS);
+    const list = storage.get<AIConversation[]>(AI_CONVERSATIONS_KEY, []);
     for (const c of list) {
       for (const m of c.messages) {
         if (m.content === 'Đã hoàn thành phản hồi.') {

@@ -33,7 +33,7 @@ export const noteService = {
         console.warn('[Supabase Online] Error loading notes:', err);
       }
     }
-    return storage.get<NoteItem[]>(NOTES_KEY, INITIAL_NOTES);
+    return storage.get<NoteItem[]>(NOTES_KEY, []);
   },
 
   async getNoteById(id: string): Promise<NoteItem | undefined> {

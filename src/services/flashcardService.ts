@@ -46,7 +46,7 @@ export const flashcardService = {
       }
     }
 
-    const cachedDecks = storage.get<FlashcardDeck[]>(DECKS_KEY, INITIAL_DECKS);
+    const cachedDecks = storage.get<FlashcardDeck[]>(DECKS_KEY, []);
     return cachedDecks.map(d => {
       const deckCards = allCards.filter(c => c.deckId === d.id);
       return {
@@ -172,7 +172,7 @@ export const flashcardService = {
       }
     }
 
-    const all = storage.get<Flashcard[]>(CARDS_KEY, INITIAL_FLASHCARDS);
+    const all = storage.get<Flashcard[]>(CARDS_KEY, []);
     if (!deckId) return all;
     return all.filter(c => c.deckId === deckId);
   },

@@ -38,11 +38,18 @@ export const authService = {
     email: string;
     password: string;
     name: string;
+    educationLevel?: 'high_school' | 'university';
+    gradeOrYear?: string;
     school?: string;
     major?: string;
     studentId?: string;
     bio?: string;
   }): Promise<AuthResponse> {
+    const educationLevel = data.educationLevel || 'university';
+    const gradeOrYear = data.gradeOrYear || (educationLevel === 'high_school' ? 'Lớp 12' : 'Năm 2');
+    const defaultSchool = educationLevel === 'high_school' ? 'Trường THPT' : 'Trường Đại học';
+    const defaultMajor = educationLevel === 'high_school' ? 'Khối Tự nhiên (Toán, Lý, Hóa)' : 'Khoa học Máy tính';
+
     if (supabase && isSupabaseConfigured) {
       const { data: authData, error } = await supabase.auth.signUp({
         email: data.email,
@@ -50,7 +57,9 @@ export const authService = {
         options: {
           data: {
             name: data.name,
-            school: data.school,
+            school: data.school || defaultSchool,
+            education_level: educationLevel,
+            grade_or_year: gradeOrYear,
           },
         },
       });
@@ -62,23 +71,31 @@ export const authService = {
         id: userId,
         email: data.email,
         name: data.name,
-        school: data.school || 'Đại học Bách Khoa',
-        major: data.major || 'Công nghệ Thông tin',
+        educationLevel,
+        gradeOrYear,
+        school: data.school || defaultSchool,
+        major: data.major || defaultMajor,
         studentId: data.studentId || '',
         bio: data.bio || '',
       };
 
       // Save to Supabase users table
-      await supabase.from('users').upsert({
-        id: userId,
-        email: data.email,
-        name: data.name,
-        school: data.school,
-        major: data.major,
-        student_id: data.studentId,
-        bio: data.bio,
-        password_hash: 'managed_by_supabase_auth',
-      });
+      try {
+        await supabase.from('users').upsert({
+          id: userId,
+          email: data.email,
+          name: data.name,
+          education_level: educationLevel,
+          grade_or_year: gradeOrYear,
+          school: newUser.school,
+          major: newUser.major,
+          student_id: data.studentId || '',
+          bio: data.bio || '',
+          password_hash: 'managed_by_supabase_auth',
+        });
+      } catch (e) {
+        console.warn('[Supabase] Error saving user profile:', e);
+      }
 
       storage.set(USER_STORAGE_KEY, newUser);
       return {
@@ -92,8 +109,10 @@ export const authService = {
       id: `user-${Date.now()}`,
       email: data.email,
       name: data.name,
-      school: data.school || 'Đại học Bách Khoa',
-      major: data.major || 'Công nghệ Thông tin',
+      educationLevel,
+      gradeOrYear,
+      school: data.school || defaultSchool,
+      major: data.major || defaultMajor,
       studentId: data.studentId || '',
       bio: data.bio || '',
     };
@@ -120,6 +139,8 @@ export const authService = {
         id: data.user.id,
         email: data.user.email || email,
         name: profile?.name || data.user.user_metadata?.name || 'Học viên StudyOS',
+        educationLevel: profile?.education_level || 'university',
+        gradeOrYear: profile?.grade_or_year || 'Năm 2',
         school: profile?.school || 'Đại học Bách Khoa',
         major: profile?.major || 'Khoa học Máy tính',
         studentId: profile?.student_id || '',
@@ -128,15 +149,19 @@ export const authService = {
 
       storage.set(USER_STORAGE_KEY, user);
       return {
-        token: data.session.access_token,
+        token: data.session?.access_token || 'supabase-session',
         user,
       };
     }
 
-    // Local mode demo login
-    const user = { ...DEMO_USER, email };
-    storage.set(USER_STORAGE_KEY, user);
-    return { token: 'demo-token', user };
+    const current = (await this.getProfile()) || DEMO_USER;
+    const localUser: UserAccount = {
+      ...current,
+      email,
+      name: current.name && current.name !== 'Nguyễn Văn An' ? current.name : (email.split('@')[0] || 'Học viên StudyOS'),
+    };
+    storage.set(USER_STORAGE_KEY, localUser);
+    return { token: 'demo-token', user: localUser };
   },
 
   async getProfile(): Promise<UserAccount> {

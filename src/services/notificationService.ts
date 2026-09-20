@@ -34,7 +34,7 @@ export const notificationService = {
         console.warn('[Supabase Online] Error loading notifications:', err);
       }
     }
-    return storage.get<AppNotification[]>(NOTIFS_KEY, INITIAL_NOTIFICATIONS);
+    return storage.get<AppNotification[]>(NOTIFS_KEY, []);
   },
 
   async markAsRead(id: string): Promise<boolean> {

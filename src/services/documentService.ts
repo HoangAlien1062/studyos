@@ -35,7 +35,7 @@ export const documentService = {
         console.warn('[Supabase Online] Error fetching documents:', err);
       }
     }
-    return storage.get<DocumentItem[]>(DOCUMENTS_KEY, INITIAL_DOCUMENTS);
+    return storage.get<DocumentItem[]>(DOCUMENTS_KEY, []);
   },
 
   async getDocumentsByFolder(folderId: string | null): Promise<DocumentItem[]> {

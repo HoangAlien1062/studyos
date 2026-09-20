@@ -113,9 +113,9 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
-  const handleResetData = () => {
-    settingsService.resetAllData();
-    toast.success('Đã khôi phục dữ liệu mẫu ban đầu');
+  const handleResetData = async () => {
+    await settingsService.loadSampleDemoData();
+    toast.success('Đã nạp bộ dữ liệu mẫu giáo dục của StudyOS');
     setIsResetConfirmOpen(false);
     triggerDataRefresh();
     window.location.reload();

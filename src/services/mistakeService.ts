@@ -65,7 +65,7 @@ export const mistakeService = {
       }
     }
 
-    let list = storage.get<MistakeItem[]>(MISTAKES_KEY, INITIAL_MISTAKES);
+    let list = storage.get<MistakeItem[]>(MISTAKES_KEY, []);
     if (!filters) return list;
 
     if (filters.subjectId) list = list.filter(m => m.subjectId === filters.subjectId);

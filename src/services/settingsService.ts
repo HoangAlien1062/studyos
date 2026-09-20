@@ -165,4 +165,31 @@ export const settingsService = {
   resetAllData(): void {
     storage.clearAll();
   },
+
+  async loadSampleDemoData(): Promise<void> {
+    const { INITIAL_SUBJECTS, INITIAL_CHAPTERS, INITIAL_TOPICS } = await import('../data/initialSubjects');
+    const { INITIAL_DECKS, INITIAL_FLASHCARDS } = await import('../data/initialFlashcards');
+    const { INITIAL_QUESTIONS } = await import('../data/initialQuestions');
+    const { INITIAL_EXAMS } = await import('../data/initialExams');
+    const { INITIAL_MISTAKES } = await import('../data/initialMistakes');
+    const { INITIAL_SCHEDULES } = await import('../data/initialSchedules');
+    const { INITIAL_NOTES } = await import('../data/initialNotes');
+    const { INITIAL_DOCUMENTS } = await import('../data/initialDocuments');
+    const { INITIAL_NOTIFICATIONS } = await import('../data/initialNotifications');
+    const { INITIAL_CONVERSATIONS } = await import('../data/initialAISettings');
+
+    storage.set('subjects', INITIAL_SUBJECTS);
+    storage.set('chapters', INITIAL_CHAPTERS);
+    storage.set('topics', INITIAL_TOPICS);
+    storage.set('flashcard_decks', INITIAL_DECKS);
+    storage.set('flashcards', INITIAL_FLASHCARDS);
+    storage.set('questions', INITIAL_QUESTIONS);
+    storage.set('exams', INITIAL_EXAMS);
+    storage.set('mistakes', INITIAL_MISTAKES);
+    storage.set('schedules', INITIAL_SCHEDULES);
+    storage.set('notes', INITIAL_NOTES);
+    storage.set('documents', INITIAL_DOCUMENTS);
+    storage.set('notifications', INITIAL_NOTIFICATIONS);
+    storage.set('ai_conversations', INITIAL_CONVERSATIONS);
+  },
 };

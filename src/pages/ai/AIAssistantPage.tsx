@@ -8,6 +8,8 @@ import {
   FileText,
   HelpCircle,
   Layers,
+  Menu,
+  MessageSquare,
   Paperclip,
   Plus,
   RefreshCw,
@@ -67,6 +69,7 @@ export const AIAssistantPage: React.FC = () => {
   const [streamingCitations, setStreamingCitations] = useState<SourceCitation[]>([]);
   const [searchConvQuery, setSearchConvQuery] = useState('');
   const [selectedAttachedDocs, setSelectedAttachedDocs] = useState<AttachedStudyFile[]>([]);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Modals & Draft Generation
   const [isAttachModalOpen, setIsAttachModalOpen] = useState(false);
@@ -408,9 +411,23 @@ export const AIAssistantPage: React.FC = () => {
   );
 
   return (
-    <div className="h-[calc(100vh-8.5rem)] flex flex-col md:flex-row gap-4 animate-in fade-in duration-150">
-      {/* LEFT SIDEBAR: Conversations List */}
-      <div className="w-full md:w-80 flex-shrink-0 flex flex-col bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3.5 shadow-xs">
+    <div className="h-[calc(100vh-8.5rem)] flex flex-col md:flex-row gap-4 animate-in fade-in duration-150 relative">
+      {/* MOBILE BACKDROP OVERLAY */}
+      {isMobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-40 md:hidden animate-in fade-in duration-200"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+
+      {/* CONVERSATIONS SIDEBAR (Responsive: Drawer on mobile, Sidebar on desktop) */}
+      <div
+        className={`${
+          isMobileSidebarOpen
+            ? 'fixed inset-y-0 left-0 w-80 max-w-[85vw] z-50 flex shadow-2xl border-r'
+            : 'hidden md:flex md:w-80 md:static shadow-xs border'
+        } flex-shrink-0 flex-col bg-white dark:bg-slate-900 md:rounded-2xl border-slate-200 dark:border-slate-800 p-3.5 transition-all duration-200`}
+      >
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Bot className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
@@ -418,15 +435,25 @@ export const AIAssistantPage: React.FC = () => {
               Trợ lý StudyOS AI
             </h3>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsAiSettingsOpen(true)}
-            className="p-1.5 h-auto text-slate-500"
-            title="Cấu hình mô hình AI"
-          >
-            <Settings className="w-4 h-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsAiSettingsOpen(true)}
+              className="p-1.5 h-auto text-slate-500"
+              title="Cấu hình mô hình AI"
+            >
+              <Settings className="w-4 h-4" />
+            </Button>
+            <button
+              type="button"
+              onClick={() => setIsMobileSidebarOpen(false)}
+              className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 md:hidden rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+              title="Đóng danh sách"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         <Button
@@ -434,7 +461,10 @@ export const AIAssistantPage: React.FC = () => {
           size="sm"
           className="w-full mb-3 justify-center"
           leftIcon={<Plus className="w-4 h-4" />}
-          onClick={() => handleNewConversation()}
+          onClick={() => {
+            handleNewConversation();
+            setIsMobileSidebarOpen(false);
+          }}
         >
           Cuộc trò chuyện mới
         </Button>
@@ -459,7 +489,10 @@ export const AIAssistantPage: React.FC = () => {
               return (
                 <div
                   key={conv.id}
-                  onClick={() => setActiveConvId(conv.id)}
+                  onClick={() => {
+                    setActiveConvId(conv.id);
+                    setIsMobileSidebarOpen(false);
+                  }}
                   className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-colors group flex items-center justify-between ${
                     isActive
                       ? 'bg-indigo-50/70 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-900/60 text-indigo-900 dark:text-indigo-200'
@@ -531,6 +564,15 @@ export const AIAssistantPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="md:hidden text-xs"
+              leftIcon={<MessageSquare className="w-3.5 h-3.5" />}
+            >
+              Hội thoại ({conversations.length})
+            </Button>
             <Select
               value={activeConversation?.mode || 'general'}
               onChange={e => handleModeChange(e.target.value as AIMode)}

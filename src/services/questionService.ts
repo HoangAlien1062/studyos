@@ -70,7 +70,7 @@ export const questionService = {
       }
     }
 
-    let list = storage.get<QuestionItem[]>(QUESTIONS_KEY, INITIAL_QUESTIONS);
+    let list = storage.get<QuestionItem[]>(QUESTIONS_KEY, []);
     if (!filters) return list;
 
     if (filters.subjectId) list = list.filter(q => q.subjectId === filters.subjectId);

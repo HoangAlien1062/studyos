@@ -37,7 +37,7 @@ export const scheduleService = {
         console.warn('[Supabase Online] Error loading schedules:', err);
       }
     }
-    return storage.get<ScheduleEvent[]>(SCHEDULES_KEY, INITIAL_SCHEDULES);
+    return storage.get<ScheduleEvent[]>(SCHEDULES_KEY, []);
   },
 
   async getScheduleById(id: string): Promise<ScheduleEvent | undefined> {

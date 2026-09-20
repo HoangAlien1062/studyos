@@ -37,7 +37,7 @@ export const subjectService = {
         console.warn('[Supabase Online] Failed to load subjects, using cache:', err);
       }
     }
-    return storage.get<Subject[]>(SUBJECTS_KEY, INITIAL_SUBJECTS);
+    return storage.get<Subject[]>(SUBJECTS_KEY, []);
   },
 
   async getSubjectById(id: string): Promise<Subject | undefined> {
@@ -125,7 +125,7 @@ export const subjectService = {
         console.warn('[Supabase Online] Error loading chapters:', err);
       }
     }
-    const all = storage.get<Chapter[]>(CHAPTERS_KEY, INITIAL_CHAPTERS);
+    const all = storage.get<Chapter[]>(CHAPTERS_KEY, []);
     if (!subjectId) return all;
     return all.filter(c => c.subjectId === subjectId).sort((a, b) => a.order - b.order);
   },
@@ -212,7 +212,7 @@ export const subjectService = {
       }
     }
 
-    let all = storage.get<Topic[]>(TOPICS_KEY, INITIAL_TOPICS);
+    let all = storage.get<Topic[]>(TOPICS_KEY, []);
     if (chapterId) all = all.filter(t => t.chapterId === chapterId);
     if (subjectId) all = all.filter(t => t.subjectId === subjectId);
     return all.sort((a, b) => a.order - b.order);

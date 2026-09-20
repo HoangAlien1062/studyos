@@ -51,10 +51,11 @@ export const DashboardPage: React.FC = () => {
   const [decks, setDecks] = useState<FlashcardDeck[]>([]);
   const [exams, setExams] = useState<ExamSession[]>([]);
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
+  const [userName, setUserName] = useState('bạn');
 
   const loadDashboardData = async () => {
     try {
-      const [scList, subList, docList, noteList, deckList, examList, sum] = await Promise.all([
+      const [scList, subList, docList, noteList, deckList, examList, sum, profile] = await Promise.all([
         scheduleService.getSchedules(),
         subjectService.getSubjects(),
         documentService.getAllDocuments(),
@@ -62,8 +63,10 @@ export const DashboardPage: React.FC = () => {
         flashcardService.getDecks(),
         examService.getExams(),
         analyticsService.getSummary(),
+        authService.getProfile(),
       ]);
 
+      if (profile?.name) setUserName(profile.name);
       setSchedules(scList);
       setSubjects(subList);
       setRecentDocs(docList.filter(d => d.type !== 'folder').slice(0, 4));
@@ -110,7 +113,7 @@ export const DashboardPage: React.FC = () => {
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <span className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-                Chào Hoàng Long 👋
+                Chào {userName} 👋
               </span>
               <Badge variant="primary" size="sm">
                 Học kỳ I • 2026-2027
@@ -139,59 +142,6 @@ export const DashboardPage: React.FC = () => {
             >
               Hỏi trợ lý AI
             </Button>
-          </div>
-        </div>
-
-        {/* State Simulator Switcher for UX Testing */}
-        <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <span className="text-slate-400 text-[11px] font-medium">
-            Mô phỏng trạng thái widget (UX/UI Testing):
-          </span>
-          <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setWidgetState('normal')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
-                widgetState === 'normal'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-              }`}
-            >
-              Bình thường
-            </button>
-            <button
-              type="button"
-              onClick={() => setWidgetState('loading')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
-                widgetState === 'loading'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-              }`}
-            >
-              Loading Skeleton
-            </button>
-            <button
-              type="button"
-              onClick={() => setWidgetState('empty')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
-                widgetState === 'empty'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-              }`}
-            >
-              Empty State
-            </button>
-            <button
-              type="button"
-              onClick={() => setWidgetState('error')}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
-                widgetState === 'error'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-              }`}
-            >
-              Error State
-            </button>
           </div>
         </div>
       </div>

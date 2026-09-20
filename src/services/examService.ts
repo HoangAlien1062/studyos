@@ -54,7 +54,7 @@ export const examService = {
       }
     }
 
-    return storage.get<ExamSession[]>(EXAMS_KEY, INITIAL_EXAMS);
+    return storage.get<ExamSession[]>(EXAMS_KEY, []);
   },
 
   async getExamById(id: string): Promise<ExamSession | undefined> {

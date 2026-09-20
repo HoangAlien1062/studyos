@@ -385,7 +385,7 @@ export const AIAssistantPage: React.FC = () => {
       if (part.startsWith('$$') && part.endsWith('$$') && part.length > 4) {
         const math = part.slice(2, -2);
         try {
-          const html = katex.renderToString(math, { displayMode: true, throwOnError: false });
+          const html = katex.renderToString(math, { displayMode: true, throwOnError: false, output: 'html' });
           return <div key={stableKey} className="my-2.5 overflow-x-auto" dangerouslySetInnerHTML={{ __html: html }} />;
         } catch {
           return <code key={stableKey} className="block my-2 text-rose-500">{part}</code>;
@@ -393,7 +393,7 @@ export const AIAssistantPage: React.FC = () => {
       } else if (part.startsWith('$') && part.endsWith('$') && part.length > 2) {
         const math = part.slice(1, -1);
         try {
-          const html = katex.renderToString(math, { displayMode: false, throwOnError: false });
+          const html = katex.renderToString(math, { displayMode: false, throwOnError: false, output: 'html' });
           return <span key={stableKey} dangerouslySetInnerHTML={{ __html: html }} />;
         } catch {
           return <code key={stableKey} className="text-rose-500">{part}</code>;

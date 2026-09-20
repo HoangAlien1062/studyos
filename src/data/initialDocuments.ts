@@ -1,0 +1,118 @@
+import { DocumentItem } from '../types/document';
+
+export const INITIAL_DOCUMENTS: DocumentItem[] = [
+  // Thư mục
+  {
+    id: 'folder-1',
+    name: 'Giải tích 1 - Bài giảng & Đề cương',
+    type: 'folder',
+    parentFolderId: null,
+    tags: ['Toán', 'Giáo trình'],
+    isFavorite: true,
+    createdAt: '2026-09-03T10:00:00Z',
+    updatedAt: '2026-09-15T14:30:00Z',
+  },
+  {
+    id: 'folder-2',
+    name: 'CS201 - Slides & Mã nguồn mẫu',
+    type: 'folder',
+    parentFolderId: null,
+    tags: ['CNTT', 'DSA'],
+    isFavorite: false,
+    createdAt: '2026-09-04T11:00:00Z',
+    updatedAt: '2026-09-16T16:00:00Z',
+  },
+  {
+    id: 'folder-3',
+    name: 'Đề thi & Đáp án các năm trước',
+    type: 'folder',
+    parentFolderId: null,
+    tags: ['Đề thi', 'Ôn tập'],
+    isFavorite: true,
+    createdAt: '2026-09-05T09:00:00Z',
+    updatedAt: '2026-09-18T10:00:00Z',
+  },
+
+  // Tệp tin trong root
+  {
+    id: 'doc-1',
+    name: 'Giao_trinh_Giai_tich_1_Toan_tap.pdf',
+    type: 'pdf',
+    parentFolderId: 'folder-1',
+    size: 4820000, // 4.6 MB
+    subjectId: 'subj-1',
+    tags: ['Giáo trình', 'ĐHQG'],
+    isFavorite: true,
+    content: 'Tài liệu Giáo trình Giải tích 1 ĐHQG Hà Nội. Nội dung gồm 6 chương: Số thực và giới hạn, Hàm một biến, Phép tính vi phân, Phép tính tích phân, Chuỗi số và chuỗi hàm.',
+    createdAt: '2026-09-03T10:15:00Z',
+    updatedAt: '2026-09-03T10:15:00Z',
+  },
+  {
+    id: 'doc-2',
+    name: 'Slide_04_Linked_List_and_Tree.pptx',
+    type: 'pptx',
+    parentFolderId: 'folder-2',
+    size: 2750000,
+    subjectId: 'subj-2',
+    tags: ['Slide', 'DSA'],
+    isFavorite: false,
+    content: 'Bài giảng tuần 4: Cấu trúc dữ liệu danh sách liên kết đơn, danh sách liên kết đôi và cây nhị phân tìm kiếm BST.',
+    createdAt: '2026-09-05T14:20:00Z',
+    updatedAt: '2026-09-05T14:20:00Z',
+  },
+  {
+    id: 'doc-3',
+    name: 'Tong_hop_Cong_thuc_Vat_ly_Dai_cuong.docx',
+    type: 'docx',
+    parentFolderId: null,
+    size: 860000,
+    subjectId: 'subj-3',
+    tags: ['Công thức', 'Tóm tắt'],
+    isFavorite: true,
+    content: 'Bảng tổng hợp công thức động học, động lực học vật rắn, mômen quán tính, định luật bảo toàn cơ năng và nhiệt học.',
+    createdAt: '2026-09-08T08:00:00Z',
+    updatedAt: '2026-09-14T09:30:00Z',
+  },
+  {
+    id: 'doc-4',
+    name: 'Huong_dan_on_tap_IELTS_Writing_Task_2.md',
+    type: 'md',
+    parentFolderId: null,
+    size: 45000,
+    subjectId: 'subj-4',
+    tags: ['Tiếng Anh', 'Writing'],
+    isFavorite: false,
+    content: `# Hướng Dẫn Viết Academic Essay Task 2\n\n## 1. Cấu trúc 4 đoạn chuẩn\n- **Introduction**: Paraphrase đề bài + Thesis Statement.\n- **Body 1**: Luận điểm 1 + Giải thích + Ví dụ cụ thể.\n- **Body 2**: Luận điểm 2 + Giải thích + Ví dụ cụ thể.\n- **Conclusion**: Tóm lược lại quan điểm chính.\n\n## 2. Linking words học thuật\n- *Furthermore, Moreover, On the contrary, Consequently, Nevertheless*`,
+    createdAt: '2026-09-10T16:00:00Z',
+    updatedAt: '2026-09-17T11:45:00Z',
+  },
+  {
+    id: 'doc-5',
+    name: 'So_do_tu_duy_Cau_truc_Du_lieu.png',
+    type: 'png',
+    parentFolderId: 'folder-2',
+    size: 1250000,
+    subjectId: 'subj-2',
+    tags: ['Mindmap', 'Sơ đồ'],
+    isFavorite: true,
+    content: 'Mindmap phân loại cấu trúc dữ liệu tuyến tính (Array, Linked List, Stack, Queue) và phi tuyến (Tree, Graph, Hash Table).',
+    createdAt: '2026-09-12T13:10:00Z',
+    updatedAt: '2026-09-12T13:10:00Z',
+  },
+  {
+    id: 'doc-6',
+    name: 'Thoi_khoa_bieu_mau_import.txt',
+    type: 'txt',
+    parentFolderId: null,
+    size: 1800,
+    tags: ['Mẫu TKB', 'Import'],
+    isFavorite: false,
+    content: `Thứ 2 | 07:30 - 09:50 | Giải tích 1 | Phòng A2-301 | TS. Nguyễn Văn Hùng
+Thứ 2 | 13:00 - 15:20 | Cấu trúc dữ liệu & Giải thuật | Lab 4 Tòa H1 | ThS. Trần Thị Mai
+Thứ 3 | 09:00 - 11:15 | Vật lý Đại cương 1 | Hội trường B3 | PGS. TS. Lê Quốc Toàn
+Thứ 4 | 15:30 - 17:30 | Tiếng Anh Học thuật B2 | Phòng C1-204 | Ms. Emily Watson
+Thứ 5 | 08:00 - 10:00 | Giải tích 1 (Bài tập) | Phòng A2-205 | ThS. Đỗ Minh Quân`,
+    createdAt: '2026-09-14T09:00:00Z',
+    updatedAt: '2026-09-14T09:00:00Z',
+  }
+];

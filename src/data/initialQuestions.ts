@@ -1,0 +1,121 @@
+import { QuestionItem } from '../types/question';
+
+export const INITIAL_QUESTIONS: QuestionItem[] = [
+  {
+    id: 'q-1',
+    content: 'Tính giới hạn sau: $L = \\lim_{x \\to 0} \\frac{\\ln(1 + 3x)}{\\sin(2x)}$',
+    options: [
+      { id: 'opt-1-a', text: '3/2' },
+      { id: 'opt-1-b', text: '2/3' },
+      { id: 'opt-1-c', text: '0' },
+      { id: 'opt-1-d', text: '1' }
+    ],
+    correctOptionId: 'opt-1-a',
+    explanation: 'Sử dụng vô cùng bé tương đương khi $x \\to 0$: ta có $\\ln(1 + 3x) \\sim 3x$ và $\\sin(2x) \\sim 2x$. Do đó $L = \\lim_{x \\to 0} \\frac{3x}{2x} = \\frac{3}{2}$.',
+    subjectId: 'subj-1',
+    chapterId: 'chap-1-1',
+    topicId: 'topic-1-1-1',
+    difficulty: 'easy',
+    type: 'single_choice',
+    tags: ['Giới hạn', 'Vô cùng bé'],
+    source: 'Đề thi giữa kỳ Giải tích 1 - K66 ĐHQG',
+    createdAt: '2026-09-05T08:00:00Z',
+  },
+  {
+    id: 'q-2',
+    content: 'Tích phân xác định $I = \\int_{0}^{1} x e^x \\, dx$ có giá trị bằng bao nhiêu?',
+    options: [
+      { id: 'opt-2-a', text: 'e - 1' },
+      { id: 'opt-2-b', text: '1' },
+      { id: 'opt-2-c', text: 'e + 1' },
+      { id: 'opt-2-d', text: '2e - 1' }
+    ],
+    correctOptionId: 'opt-2-b',
+    explanation: 'Đặt $u = x \\Rightarrow du = dx$; $dv = e^x dx \\Rightarrow v = e^x$. Áp dụng công thức tích phân từng phần: $I = [x e^x]_0^1 - \\int_0^1 e^x dx = e - (e - 1) = 1$.',
+    subjectId: 'subj-1',
+    chapterId: 'chap-1-3',
+    difficulty: 'medium',
+    type: 'single_choice',
+    tags: ['Tích phân', 'Từng phần'],
+    source: 'Giáo trình Toán cao cấp ĐHBK',
+    createdAt: '2026-09-06T10:00:00Z',
+  },
+  {
+    id: 'q-3',
+    content: 'Khẳng định nào sau đây là ĐÚNG về điểm gián đoạn của hàm số $f(x) = \\frac{|x|}{x}$ tại $x = 0$?',
+    options: [
+      { id: 'opt-3-a', text: 'Hàm số liên tục tại x = 0' },
+      { id: 'opt-3-b', text: 'x = 0 là điểm gián đoạn bỏ được (loại 1)' },
+      { id: 'opt-3-c', text: 'x = 0 là điểm gián đoạn bước nhảy (loại 1)' },
+      { id: 'opt-3-d', text: 'x = 0 là điểm gián đoạn vô cực (loại 2)' }
+    ],
+    correctOptionId: 'opt-3-c',
+    explanation: 'Ta có $\\lim_{x \\to 0^+} f(x) = 1$ và $\\lim_{x \\to 0^-} f(x) = -1$. Hai giới hạn một phía hữu hạn nhưng khác nhau nên đây là điểm gián đoạn loại 1 có bước nhảy $\\Delta = 1 - (-1) = 2$.',
+    subjectId: 'subj-1',
+    chapterId: 'chap-1-1',
+    topicId: 'topic-1-1-2',
+    difficulty: 'medium',
+    type: 'single_choice',
+    tags: ['Điểm gián đoạn', 'Tính liên tục'],
+    source: 'Đề thi KTHP Giải tích 1',
+    createdAt: '2026-09-07T11:00:00Z',
+  },
+  {
+    id: 'q-4',
+    content: 'Trong cấu trúc dữ liệu Singly Linked List chỉ lưu con trỏ Head, thao tác nào sau đây có độ phức tạp thời gian $O(N)$ trong trường hợp xấu nhất?',
+    options: [
+      { id: 'opt-4-a', text: 'Thêm phần tử vào đầu danh sách' },
+      { id: 'opt-4-b', text: 'Xóa phần tử ở đầu danh sách' },
+      { id: 'opt-4-c', text: 'Xóa phần tử cuối cùng của danh sách' },
+      { id: 'opt-4-d', text: 'Kiểm tra danh sách rỗng (isEmpty)' }
+    ],
+    correctOptionId: 'opt-4-c',
+    explanation: 'Để xóa phần tử cuối trong danh sách liên kết đơn, ta bắt buộc phải duyệt từ Head tới phần tử kế cuối (second-to-last) để cập nhật con trỏ next thành nullptr, do đó mất $O(N)$.',
+    subjectId: 'subj-2',
+    chapterId: 'chap-2-2',
+    topicId: 'topic-2-2-1',
+    difficulty: 'easy',
+    type: 'single_choice',
+    tags: ['DSA', 'Linked List', 'Big-O'],
+    source: 'Bài tập thực hành DSA tuần 3',
+    createdAt: '2026-09-08T15:00:00Z',
+  },
+  {
+    id: 'q-5',
+    content: 'Cây nhị phân cân bằng AVL có tính chất nào sau đây?',
+    options: [
+      { id: 'opt-5-a', text: 'Độ chênh lệch chiều cao giữa cây con trái và phải tại mọi nút không vượt quá 1' },
+      { id: 'opt-5-b', text: 'Mọi nút lá đều ở cùng một độ sâu' },
+      { id: 'opt-5-c', text: 'Các phần tử được sắp xếp theo cấu trúc Heap' },
+      { id: 'opt-5-d', text: 'Mỗi nút có đúng 2 con' }
+    ],
+    correctOptionId: 'opt-5-a',
+    explanation: 'Theo định nghĩa cây AVL (Adelson-Velsky and Landis), chỉ số cân bằng BalanceFactor = Height(Left) - Height(Right) chỉ nhận các giá trị {-1, 0, 1}.',
+    subjectId: 'subj-2',
+    chapterId: 'chap-2-3',
+    difficulty: 'hard',
+    type: 'single_choice',
+    tags: ['Tree', 'AVL', 'DSA'],
+    source: 'Đề thi cuối kỳ Cấu trúc dữ liệu',
+    createdAt: '2026-09-10T16:00:00Z',
+  },
+  {
+    id: 'q-6',
+    content: 'Một vật trượt không ma sát từ đỉnh mặt phẳng nghiêng cao $h$ xuống chân mặt phẳng. Vận tốc tại chân dốc phụ thuộc vào góc nghiêng $\\alpha$ như thế nào?',
+    options: [
+      { id: 'opt-6-a', text: 'Tỉ lệ thuận với sin(alpha)' },
+      { id: 'opt-6-b', text: 'Tỉ lệ nghịch với cos(alpha)' },
+      { id: 'opt-6-c', text: 'Không phụ thuộc vào góc nghiêng alpha' },
+      { id: 'opt-6-d', text: 'Phụ thuộc vào chiều dài dốc l' }
+    ],
+    correctOptionId: 'opt-6-c',
+    explanation: 'Theo định luật bảo toàn cơ năng (bỏ qua ma sát): $mgh = \\frac{1}{2}mv^2 \\Rightarrow v = \\sqrt{2gh}$. Vận tốc chỉ phụ thuộc vào độ cao $h$ và gia tốc trọng trường $g$, hoàn toàn không phụ thuộc góc nghiêng.',
+    subjectId: 'subj-3',
+    chapterId: 'chap-3-2',
+    difficulty: 'medium',
+    type: 'single_choice',
+    tags: ['Cơ năng', 'Bảo toàn', 'Vật lý'],
+    source: 'Đề thi Olympic Vật lý sinh viên',
+    createdAt: '2026-09-11T13:30:00Z',
+  }
+];

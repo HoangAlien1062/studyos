@@ -152,7 +152,12 @@ export const AIAssistantPage: React.FC = () => {
         files,
         activeConversation?.mode || 'general',
         delta => {
-          setStreamingDelta(prev => prev + delta);
+          setStreamingDelta(prev => {
+            if (delta.startsWith(prev) && prev.length > 0) {
+              return delta;
+            }
+            return prev + delta;
+          });
         },
         meta => {
           if (meta.citations) {

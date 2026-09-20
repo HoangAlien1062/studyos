@@ -115,7 +115,11 @@ export class GoogleAdapter extends AbstractBaseProvider {
     const data = await res.json();
     const latencyMs = Date.now() - startTime;
     const candidate = data.candidates?.[0];
-    const text = candidate?.content?.parts?.map((p: any) => p.text).join('') || '';
+    const text = candidate?.content?.parts
+      ?.filter((p: any) => !p.thought)
+      ?.map((p: any) => p.text)
+      ?.filter(Boolean)
+      ?.join('') || '';
 
     return {
       content: text,
@@ -196,10 +200,24 @@ export class GoogleAdapter extends AbstractBaseProvider {
 
           try {
             const parsed = JSON.parse(jsonStr);
-            const delta = parsed.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('');
-            if (delta) {
-              fullContent += delta;
-              onChunk({ contentChunk: delta, isFinished: false });
+            // Lọc bỏ các part thought/reasoning nội bộ của Gemini 2.0/2.5/3.0
+            const rawDelta = parsed.candidates?.[0]?.content?.parts
+              ?.filter((p: any) => !p.thought)
+              ?.map((p: any) => p.text)
+              ?.filter(Boolean)
+              ?.join('') || '';
+
+            if (rawDelta) {
+              // Xử lý cả 2 trường hợp: delta rời rạc (incremental) hoặc delta lũy kế (cumulative)
+              let delta = rawDelta;
+              if (fullContent.length > 0 && delta.startsWith(fullContent)) {
+                delta = delta.slice(fullContent.length);
+              }
+
+              if (delta) {
+                fullContent += delta;
+                onChunk({ contentChunk: delta, isFinished: false });
+              }
             }
           } catch {}
         }

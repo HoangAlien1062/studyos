@@ -123,6 +123,34 @@ export const settingsService = {
     return storage.importAllData(jsonString);
   },
 
+  createSyncCode(): string {
+    const raw = storage.exportAllData();
+    try {
+      if (typeof window !== 'undefined') {
+        return window.btoa(unescape(encodeURIComponent(raw)));
+      }
+      return Buffer.from(raw, 'utf-8').toString('base64');
+    } catch {
+      return raw;
+    }
+  },
+
+  applySyncCode(syncPayload: string): boolean {
+    const trimmed = syncPayload.trim();
+    if (!trimmed) return false;
+    let json = trimmed;
+    try {
+      if (typeof window !== 'undefined') {
+        json = decodeURIComponent(escape(window.atob(trimmed)));
+      } else {
+        json = Buffer.from(trimmed, 'base64').toString('utf-8');
+      }
+    } catch {
+      json = trimmed;
+    }
+    return storage.importAllData(json);
+  },
+
   /**
    * Wipe all user data completely to start with a pristine clean slate.
    * Clears subjects, documents, notes, flashcards, questions, mistakes, exams, schedules, and AI chats.

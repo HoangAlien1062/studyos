@@ -1,5 +1,8 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+const CUSTOM_URL_KEY = 'studyos_custom_supabase_url';
+const CUSTOM_KEY_KEY = 'studyos_custom_supabase_anon_key';
+
 const getEnvVar = (key: string): string => {
   if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
     return import.meta.env[key];
@@ -10,35 +13,94 @@ const getEnvVar = (key: string): string => {
   return '';
 };
 
-const supabaseUrl = getEnvVar('VITE_SUPABASE_URL');
-const supabaseAnonKey = getEnvVar('VITE_SUPABASE_ANON_KEY');
+export function getStoredCustomSupabaseConfig(): { url: string; anonKey: string } {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return {
+        url: window.localStorage.getItem(CUSTOM_URL_KEY) || '',
+        anonKey: window.localStorage.getItem(CUSTOM_KEY_KEY) || '',
+      };
+    }
+  } catch {}
+  return { url: '', anonKey: '' };
+}
 
-export const isSupabaseConfigured = Boolean(
-  supabaseUrl &&
-  supabaseAnonKey &&
-  supabaseUrl.startsWith('https://') &&
-  !supabaseUrl.includes('your-project-ref')
+export function getEffectiveSupabaseConfig(): { url: string; anonKey: string; isCustom: boolean } {
+  const custom = getStoredCustomSupabaseConfig();
+  if (custom.url && custom.anonKey && custom.url.startsWith('https://')) {
+    return { url: custom.url, anonKey: custom.anonKey, isCustom: true };
+  }
+  const envUrl = getEnvVar('VITE_SUPABASE_URL');
+  const envKey = getEnvVar('VITE_SUPABASE_ANON_KEY');
+  return { url: envUrl, anonKey: envKey, isCustom: false };
+}
+
+const initialConfig = getEffectiveSupabaseConfig();
+
+export let isSupabaseConfigured = Boolean(
+  initialConfig.url &&
+  initialConfig.anonKey &&
+  initialConfig.url.startsWith('https://') &&
+  !initialConfig.url.includes('your-project-ref')
 );
 
 export let supabase: SupabaseClient | null = null;
 
-if (isSupabaseConfigured) {
-  try {
-    supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-      },
-    });
-    console.log('[Supabase Online] Connected successfully to:', supabaseUrl);
-  } catch (err) {
-    console.warn('[Supabase Online] Connection failed:', err);
+export function initSupabase(url?: string, anonKey?: string): boolean {
+  const targetUrl = url || getEffectiveSupabaseConfig().url;
+  const targetKey = anonKey || getEffectiveSupabaseConfig().anonKey;
+
+  if (targetUrl && targetKey && targetUrl.startsWith('https://') && !targetUrl.includes('your-project-ref')) {
+    try {
+      supabase = createClient(targetUrl, targetKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+        },
+      });
+      isSupabaseConfigured = true;
+      console.log('[Supabase Online] Connected successfully to:', targetUrl);
+      return true;
+    } catch (err) {
+      console.warn('[Supabase Online] Connection failed:', err);
+      supabase = null;
+      isSupabaseConfigured = false;
+      return false;
+    }
+  } else {
     supabase = null;
+    isSupabaseConfigured = false;
+    return false;
   }
-} else {
-  console.info(
-    '[StudyOS] Đang chạy với dữ liệu mẫu offline. Để kết nối Supabase Online (https://supabase.com), hãy điền VITE_SUPABASE_URL và VITE_SUPABASE_ANON_KEY vào file .env.'
-  );
+}
+
+// Initialize on module load
+initSupabase();
+
+export function saveCustomSupabaseConfig(url: string, anonKey: string): boolean {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(CUSTOM_URL_KEY, url.trim());
+      window.localStorage.setItem(CUSTOM_KEY_KEY, anonKey.trim());
+    }
+  } catch (err) {
+    console.error('Failed to save custom supabase config:', err);
+  }
+  return initSupabase(url.trim(), anonKey.trim());
+}
+
+export function clearCustomSupabaseConfig(): boolean {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.removeItem(CUSTOM_URL_KEY);
+      window.localStorage.removeItem(CUSTOM_KEY_KEY);
+    }
+  } catch (err) {
+    console.error('Failed to clear custom supabase config:', err);
+  }
+  const envUrl = getEnvVar('VITE_SUPABASE_URL');
+  const envKey = getEnvVar('VITE_SUPABASE_ANON_KEY');
+  return initSupabase(envUrl, envKey);
 }
 
 /**

@@ -11,6 +11,7 @@ import {
   Settings,
   Sun,
   User,
+  Users,
 } from 'lucide-react';
 import { useStudy } from '../../context/StudyContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -49,6 +50,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMobileMenuToggle }) => {
     isAuthenticated,
     currentUser,
     setIsAuthModalOpen,
+    setIsAccountModalOpen,
     triggerDataRefresh,
   } = useStudy();
   const { mode, setMode } = useTheme();
@@ -165,6 +167,11 @@ export const Topbar: React.FC<TopbarProps> = ({ onMobileMenuToggle }) => {
                 label: currentUser?.name || 'Học viên StudyOS',
                 icon: <User className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />,
                 onClick: () => navigateTo('profile'),
+              },
+              {
+                label: 'Quản lý tài khoản & Đồng bộ',
+                icon: <Users className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />,
+                onClick: () => setIsAccountModalOpen(true),
               },
               {
                 label: 'Cài đặt hệ thống',

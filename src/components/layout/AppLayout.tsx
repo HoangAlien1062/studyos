@@ -4,6 +4,7 @@ import { Topbar } from './Topbar';
 import { CommandPalette } from './CommandPalette';
 import { NotificationDrawer } from './NotificationDrawer';
 import { AuthModal } from '../auth/AuthModal';
+import { AccountManagementModal } from '../auth/AccountManagementModal';
 import { useStudy } from '../../context/StudyContext';
 
 export interface AppLayoutProps {
@@ -12,7 +13,7 @@ export interface AppLayoutProps {
 
 export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const { isAuthModalOpen, setIsAuthModalOpen, isAuthenticated } = useStudy();
+  const { isAuthModalOpen, setIsAuthModalOpen, isAccountModalOpen, setIsAccountModalOpen, isAuthenticated } = useStudy();
 
   return (
     <div className="min-h-screen flex bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors">
@@ -56,6 +57,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       <CommandPalette />
       <NotificationDrawer />
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
+      <AccountManagementModal isOpen={isAccountModalOpen} onClose={() => setIsAccountModalOpen(false)} />
     </div>
   );
 };

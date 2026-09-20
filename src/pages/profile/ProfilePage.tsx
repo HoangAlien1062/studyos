@@ -14,9 +14,11 @@ import {
   Mail,
   RotateCcw,
   Save,
+  Smartphone,
   Sparkles,
   Upload,
   User,
+  Users,
   X,
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
@@ -118,7 +120,7 @@ function resizeImage(file: File, maxWidth = 256, maxHeight = 256): Promise<strin
 
 export const ProfilePage: React.FC = () => {
   const toast = useToast();
-  const { triggerDataRefresh } = useStudy();
+  const { triggerDataRefresh, setIsAccountModalOpen } = useStudy();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
@@ -278,7 +280,15 @@ export const ProfilePage: React.FC = () => {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 justify-center sm:justify-end">
+              <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAccountModalOpen(true)}
+                  leftIcon={<Users className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />}
+                >
+                  Quản lý tài khoản
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -288,7 +298,7 @@ export const ProfilePage: React.FC = () => {
                   }}
                   leftIcon={<Camera className="w-3.5 h-3.5" />}
                 >
-                  Đổi ảnh đại diện
+                  Đổi ảnh
                 </Button>
                 <Button
                   variant={isEditing ? 'outline' : 'primary'}
@@ -296,7 +306,7 @@ export const ProfilePage: React.FC = () => {
                   onClick={() => setIsEditing(!isEditing)}
                   leftIcon={<Edit2 className="w-3.5 h-3.5" />}
                 >
-                  {isEditing ? 'Hủy' : 'Chỉnh sửa hồ sơ'}
+                  {isEditing ? 'Hủy' : 'Chỉnh sửa'}
                 </Button>
               </div>
             </div>
@@ -319,6 +329,32 @@ export const ProfilePage: React.FC = () => {
           </div>
         </div>
       </Card>
+
+      {/* Multi-device Sync Banner */}
+      <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-50/80 via-purple-50/60 to-pink-50/40 dark:from-indigo-950/40 dark:via-purple-950/30 dark:to-pink-950/20 border border-indigo-100 dark:border-indigo-900/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs flex-shrink-0">
+            <Smartphone className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="font-bold text-slate-900 dark:text-slate-100 block">
+              Đồng bộ dữ liệu sang Điện thoại hoặc Máy tính khác
+            </span>
+            <span className="text-slate-500 dark:text-slate-400 text-[11px]">
+              Tạo mã đồng bộ 5 giây hoặc kết nối Supabase Cloud để dữ liệu tự động cập nhật thời gian thực trên mọi thiết bị.
+            </span>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          variant="primary"
+          onClick={() => setIsAccountModalOpen(true)}
+          className="flex-shrink-0"
+          leftIcon={<Users className="w-3.5 h-3.5" />}
+        >
+          Quản lý tài khoản & Đồng bộ
+        </Button>
+      </div>
 
       {/* Profile Edit Form */}
       {isEditing && (

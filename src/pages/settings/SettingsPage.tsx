@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import {
   Bell,
   Bot,
+  Check,
+  Copy,
   Database,
   Download,
   Laptop,
@@ -10,9 +12,12 @@ import {
   Save,
   Settings as SettingsIcon,
   Shield,
+  Smartphone,
+  Sparkles,
   Sun,
   Trash2,
   Upload,
+  Users,
 } from 'lucide-react';
 import { useStudy } from '../../context/StudyContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -30,10 +35,13 @@ import { AISettingsModal } from '../ai/AISettingsModal';
 
 export const SettingsPage: React.FC = () => {
   const { mode, setMode } = useTheme();
-  const { dataVersion, triggerDataRefresh } = useStudy();
+  const { dataVersion, triggerDataRefresh, setIsAccountModalOpen } = useStudy();
   const toast = useToast();
 
   const [activeTab, setActiveTab] = useState<'general' | 'appearance' | 'notifications' | 'ai' | 'data' | 'privacy'>('general');
+  const [syncCode, setSyncCode] = useState('');
+  const [inputCode, setInputCode] = useState('');
+  const [isCopied, setIsCopied] = useState(false);
   const [settings, setSettings] = useState<FullAppSettings | null>(null);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
@@ -360,8 +368,125 @@ export const SettingsPage: React.FC = () => {
 
       {/* TAB 5: DATA MANAGEMENT & BACKUP */}
       {activeTab === 'data' && (
-        <Card title="Quản lý dữ liệu & Sao lưu" className="p-6 space-y-6">
-          <div className="space-y-2">
+        <Card title="Quản lý dữ liệu, Tài khoản & Đồng bộ thiết bị" className="p-6 space-y-6">
+          {/* Quick Account & Cloud Management Banner */}
+          <div className="p-4 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs flex-shrink-0">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="font-bold text-slate-900 dark:text-slate-100 block">
+                  Trung tâm Quản lý tài khoản & Cơ sở dữ liệu Cloud
+                </span>
+                <span className="text-slate-500 dark:text-slate-400 text-[11px]">
+                  Xem danh sách tài khoản trên máy, đổi tài khoản, đổi mật khẩu và kết nối Supabase Cloud để tự động đồng bộ thời gian thực.
+                </span>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() => setIsAccountModalOpen(true)}
+              className="flex-shrink-0"
+              leftIcon={<Users className="w-3.5 h-3.5" />}
+            >
+              Mở Quản lý tài khoản & Đồng bộ
+            </Button>
+          </div>
+
+          {/* Quick 5-Second Sync Between PC and Phone */}
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                Đồng bộ nhanh không gian học sang Điện thoại (Mã đồng bộ 5 giây)
+              </h4>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Bạn có thể tạo mã sao lưu trên máy tính này, rồi mở StudyOS trên điện thoại dán mã vào để lập tức có đầy đủ tài khoản, môn học, tài liệu và câu hỏi.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2 bg-slate-50/50 dark:bg-slate-900/50">
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                  1. Tạo mã từ máy tính này:
+                </span>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className="w-full justify-center"
+                  onClick={() => {
+                    const code = settingsService.createSyncCode();
+                    setSyncCode(code);
+                    toast.success('Đã tạo mã đồng bộ!');
+                  }}
+                  leftIcon={<Sparkles className="w-3.5 h-3.5" />}
+                >
+                  Tạo mã đồng bộ
+                </Button>
+                {syncCode && (
+                  <div className="space-y-1.5 pt-1">
+                    <textarea
+                      readOnly
+                      rows={2}
+                      value={syncCode}
+                      className="w-full p-2 text-[10px] font-mono bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg select-all"
+                    />
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      className="w-full justify-center"
+                      onClick={() => {
+                        navigator.clipboard.writeText(syncCode);
+                        setIsCopied(true);
+                        toast.success('Đã sao chép mã đồng bộ!');
+                        setTimeout(() => setIsCopied(false), 2500);
+                      }}
+                      leftIcon={isCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                    >
+                      {isCopied ? 'Đã sao chép!' : 'Sao chép mã'}
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2 bg-slate-50/50 dark:bg-slate-900/50">
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                  2. Nhập mã từ thiết bị khác:
+                </span>
+                <textarea
+                  rows={syncCode ? 4 : 2}
+                  placeholder="Dán mã đồng bộ vào đây..."
+                  value={inputCode}
+                  onChange={e => setInputCode(e.target.value)}
+                  className="w-full p-2 text-[10px] font-mono bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none"
+                />
+                <Button
+                  size="xs"
+                  variant="primary"
+                  className="w-full justify-center bg-emerald-600 hover:bg-emerald-700"
+                  disabled={!inputCode.trim()}
+                  onClick={() => {
+                    const ok = settingsService.applySyncCode(inputCode.trim());
+                    if (ok) {
+                      toast.success('Đồng bộ thành công! Dữ liệu đã được nạp.');
+                      triggerDataRefresh();
+                      setInputCode('');
+                      setTimeout(() => window.location.reload(), 500);
+                    } else {
+                      toast.error('Mã đồng bộ không hợp lệ');
+                    }
+                  }}
+                  leftIcon={<Download className="w-3.5 h-3.5" />}
+                >
+                  Áp dụng dữ liệu sang máy này
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
             <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">
               Xuất bản sao lưu dữ liệu (Export JSON)
             </h4>

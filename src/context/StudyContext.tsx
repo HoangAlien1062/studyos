@@ -25,6 +25,8 @@ interface StudyContextType {
   setIsNotificationDrawerOpen: (open: boolean) => void;
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
+  isAccountModalOpen: boolean;
+  setIsAccountModalOpen: (open: boolean) => void;
   isAuthenticated: boolean;
   currentUser: UserAccount | null;
   unreadNotifsCount: number;
@@ -43,6 +45,7 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
   const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(() => !authService.isAuthenticated());
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => authService.getCurrentUser());
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => authService.isAuthenticated());
   const [unreadNotifsCount, setUnreadNotifsCount] = useState<number>(2);
@@ -241,6 +244,8 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setIsNotificationDrawerOpen,
         isAuthModalOpen,
         setIsAuthModalOpen,
+        isAccountModalOpen,
+        setIsAccountModalOpen,
         isAuthenticated,
         currentUser,
         unreadNotifsCount,

@@ -1,4 +1,3 @@
-import { INITIAL_NOTES } from '../data/initialNotes';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { NoteItem } from '../types/note';
 import { storage } from './storage';
@@ -14,7 +13,7 @@ export const noteService = {
           .select('*')
           .order('updated_at', { ascending: false });
 
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
           const mapped: NoteItem[] = data.map(n => ({
             id: n.id,
             title: n.title,
@@ -62,8 +61,11 @@ export const noteService = {
 
     if (supabase && isSupabaseConfigured) {
       try {
+        const { data: authData } = await supabase.auth.getUser();
+        const userId = authData?.user?.id;
         await supabase.from('notes').upsert({
           id: saved.id,
+          user_id: userId,
           title: saved.title,
           content_markdown: saved.content,
           subject_id: saved.subjectId || null,
@@ -107,7 +109,7 @@ export const noteService = {
       try {
         await supabase.from('notes').update({ is_pinned: target.isPinned }).eq('id', id);
       } catch (err) {
-        console.warn('[Supabase Online] Error toggling pin:', err);
+        console.warn('[Supabase Online] Error updating pin status:', err);
       }
     }
 
@@ -126,7 +128,7 @@ export const noteService = {
       try {
         await supabase.from('notes').update({ is_favorite: target.isFavorite }).eq('id', id);
       } catch (err) {
-        console.warn('[Supabase Online] Error toggling favorite:', err);
+        console.warn('[Supabase Online] Error updating favorite status:', err);
       }
     }
 

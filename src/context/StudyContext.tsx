@@ -212,6 +212,30 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   useEffect(() => {
+    // Initial profile sync
+    authService.getProfile().then(user => {
+      if (user) {
+        setCurrentUser(user);
+        setIsAuthenticated(true);
+      }
+    });
+
+    // Listen for auth state changes (e.g. Google OAuth redirect)
+    const unsubscribe = authService.initAuthListener((user) => {
+      setCurrentUser(user);
+      setIsAuthenticated(Boolean(user));
+      if (user) {
+        setIsAuthModalOpen(false);
+      }
+      triggerDataRefresh();
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
     setCurrentUser(authService.getCurrentUser());
     setIsAuthenticated(authService.isAuthenticated());
     refreshUnreadNotifs();

@@ -20,7 +20,7 @@ export const flashcardService = {
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
           const mapped: FlashcardDeck[] = data.map(d => {
             const deckCards = allCards.filter(c => c.deckId === d.id);
             return {
@@ -150,7 +150,7 @@ export const flashcardService = {
         let query = supabase.from('flashcards').select('*').order('created_at', { ascending: true });
         if (deckId) query = query.eq('deck_id', deckId);
         const { data, error } = await query;
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
           const mapped: Flashcard[] = data.map(c => ({
             id: c.id,
             deckId: c.deck_id,

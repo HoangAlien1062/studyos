@@ -14,7 +14,7 @@ export const scheduleService = {
           .select('*')
           .order('date', { ascending: true });
 
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
           const mapped: ScheduleEvent[] = data.map(s => ({
             id: s.id,
             subjectId: s.subject_id || '',
@@ -74,8 +74,11 @@ export const scheduleService = {
 
     if (supabase && isSupabaseConfigured) {
       try {
+        const { data: authData } = await supabase.auth.getUser();
+        const userId = authData?.user?.id;
         await supabase.from('schedules').upsert({
           id: savedItem.id,
+          user_id: userId,
           subject_id: savedItem.subjectId || null,
           subject_name: savedItem.subjectName,
           date: savedItem.date,

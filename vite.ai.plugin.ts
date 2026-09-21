@@ -1,24 +1,24 @@
 /**
- * Vite Plugin attaching the StudyOS AI Backend Middleware
- * Enables seamless full-stack AI execution during 'npm.cmd run dev' and 'npm.cmd run preview'
+ * Vite Plugin attaching the StudyOS Full-Stack Backend Middleware
+ * Enables seamless execution of AI, Google Drive Storage, Admin API, and Health during dev & preview
  */
 
 import { Plugin } from 'vite';
-import { handleAIRequest } from './server/ai/index';
+import { handleServerRequest } from './server/index';
 
 export function studyOsAIPlugin(): Plugin {
   return {
-    name: 'studyos-ai-backend-plugin',
+    name: 'studyos-backend-plugin',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        if (req.url && (req.url.startsWith('/api/ai') || req.url.startsWith('/api/health') || req.url === '/health')) {
+        if (req.url && (req.url.startsWith('/api/') || req.url === '/health')) {
           try {
-            const handled = await handleAIRequest(req, res);
+            const handled = await handleServerRequest(req, res);
             if (handled) return;
           } catch (err) {
-            console.error('[Vite AI Middleware Error]:', err);
+            console.error('[Vite Backend Middleware Error]:', err);
             res.statusCode = 500;
-            res.end('Internal AI Server Error');
+            res.end('Internal Server Error');
             return;
           }
         }
@@ -27,14 +27,14 @@ export function studyOsAIPlugin(): Plugin {
     },
     configurePreviewServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        if (req.url && (req.url.startsWith('/api/ai') || req.url.startsWith('/api/health') || req.url === '/health')) {
+        if (req.url && (req.url.startsWith('/api/') || req.url === '/health')) {
           try {
-            const handled = await handleAIRequest(req, res);
+            const handled = await handleServerRequest(req, res);
             if (handled) return;
           } catch (err) {
-            console.error('[Vite AI Preview Middleware Error]:', err);
+            console.error('[Vite Backend Preview Middleware Error]:', err);
             res.statusCode = 500;
-            res.end('Internal AI Server Error');
+            res.end('Internal Server Error');
             return;
           }
         }

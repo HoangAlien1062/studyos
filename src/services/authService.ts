@@ -5,6 +5,7 @@ export interface UserAccount {
   id: string;
   email: string;
   name: string;
+  role?: 'user' | 'admin';
   educationLevel?: 'high_school' | 'university';
   gradeOrYear?: string;
   school: string;
@@ -29,6 +30,7 @@ const DEMO_USER: UserAccount = {
   id: '11111111-1111-1111-1111-111111111111',
   email: 'student@studyos.edu.vn',
   name: 'Nguyễn Văn An',
+  role: 'user',
   educationLevel: 'university',
   gradeOrYear: 'Năm 3 - K22',
   school: 'Đại học Bách Khoa TP.HCM',
@@ -54,6 +56,9 @@ export const authService = {
     return storage.get<StoredAccount[]>(REGISTERED_ACCOUNTS_KEY, []);
   },
 
+  /**
+   * Register with Email & Password
+   */
   async register(data: {
     email: string;
     password: string;
@@ -66,6 +71,7 @@ export const authService = {
     bio?: string;
     avatarUrl?: string;
   }): Promise<AuthResponse> {
+    const cleanEmail = data.email.trim().toLowerCase();
     const educationLevel = data.educationLevel || 'university';
     const gradeOrYear = data.gradeOrYear || (educationLevel === 'high_school' ? 'Lớp 12' : 'Năm 2');
     const defaultSchool = educationLevel === 'high_school' ? 'Trường THPT' : 'Trường Đại học';
@@ -73,14 +79,15 @@ export const authService = {
 
     if (supabase && isSupabaseConfigured) {
       const { data: authData, error } = await supabase.auth.signUp({
-        email: data.email,
+        email: cleanEmail,
         password: data.password,
         options: {
           data: {
-            name: data.name,
+            name: data.name.trim(),
             school: data.school || defaultSchool,
             education_level: educationLevel,
             grade_or_year: gradeOrYear,
+            major: data.major || defaultMajor,
           },
         },
       });
@@ -90,8 +97,9 @@ export const authService = {
       const userId = authData.user?.id || `user-${Date.now()}`;
       const newUser: UserAccount = {
         id: userId,
-        email: data.email,
-        name: data.name,
+        email: cleanEmail,
+        name: data.name.trim(),
+        role: 'user',
         educationLevel,
         gradeOrYear,
         school: data.school || defaultSchool,
@@ -101,12 +109,13 @@ export const authService = {
         avatarUrl: data.avatarUrl || '',
       };
 
-      // Save to Supabase users table
+      // Ensure profile exists in public.users
       try {
         await supabase.from('users').upsert({
           id: userId,
-          email: data.email,
-          name: data.name,
+          email: cleanEmail,
+          name: newUser.name,
+          role: 'user',
           education_level: educationLevel,
           grade_or_year: gradeOrYear,
           school: newUser.school,
@@ -114,7 +123,6 @@ export const authService = {
           student_id: data.studentId || '',
           bio: data.bio || '',
           avatar_url: newUser.avatarUrl || '',
-          password_hash: 'managed_by_supabase_auth',
         });
       } catch (e) {
         console.warn('[Supabase] Error saving user profile:', e);
@@ -128,11 +136,12 @@ export const authService = {
       };
     }
 
-    // Local mode
+    // Local mode fallback
     const localUser: UserAccount = {
       id: `user-${Date.now()}`,
-      email: data.email.trim(),
+      email: cleanEmail,
       name: data.name.trim(),
+      role: 'user',
       educationLevel,
       gradeOrYear,
       school: data.school?.trim() || defaultSchool,
@@ -147,6 +156,9 @@ export const authService = {
     return { token: 'demo-token', user: localUser };
   },
 
+  /**
+   * Login with Email & Password
+   */
   async login(email: string, password?: string): Promise<AuthResponse> {
     const cleanEmail = email.trim().toLowerCase();
 
@@ -159,6 +171,7 @@ export const authService = {
 
       if (error) throw new Error(error.message);
 
+      // Fetch user profile from public.users
       const { data: profile } = await supabase
         .from('users')
         .select('*')
@@ -168,14 +181,15 @@ export const authService = {
       const user: UserAccount = {
         id: data.user.id,
         email: data.user.email || cleanEmail,
-        name: profile?.name || data.user.user_metadata?.name || 'Học viên StudyOS',
+        name: profile?.name || data.user.user_metadata?.name || data.user.user_metadata?.full_name || 'Học viên StudyOS',
+        role: profile?.role || 'user',
         educationLevel: profile?.education_level || 'university',
         gradeOrYear: profile?.grade_or_year || 'Năm 2',
         school: profile?.school || 'Đại học Bách Khoa',
         major: profile?.major || 'Khoa học Máy tính',
         studentId: profile?.student_id || '',
         bio: profile?.bio || '',
-        avatarUrl: profile?.avatar_url || '',
+        avatarUrl: profile?.avatar_url || data.user.user_metadata?.avatar_url || data.user.user_metadata?.picture || '',
       };
 
       this.saveToRegistry(user, password);
@@ -207,11 +221,12 @@ export const authService = {
       return this.loginAsDemo();
     }
 
-    // If account doesn't exist on this device, automatically create it with default profile
+    // If account doesn't exist on this device in local mode
     const newUser: UserAccount = {
       id: `user-${Date.now()}`,
       email: cleanEmail,
       name: email.split('@')[0] || 'Học viên StudyOS',
+      role: 'user',
       educationLevel: 'university',
       gradeOrYear: 'Năm 2',
       school: 'Đại học Bách Khoa',
@@ -226,6 +241,53 @@ export const authService = {
     return { token: 'demo-token', user: newUser };
   },
 
+  /**
+   * Google OAuth Login via Supabase Auth
+   * Standard user authentication only - never asks for Google Drive permissions
+   */
+  async loginWithGoogle(): Promise<void> {
+    if (!supabase || !isSupabaseConfigured) {
+      throw new Error('Supabase chưa được cấu hình. Vui lòng kiểm tra biến môi trường VITE_SUPABASE_URL và VITE_SUPABASE_ANON_KEY.');
+    }
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'select_account',
+        },
+      },
+    });
+
+    if (error) {
+      throw new Error(`Đăng nhập Google thất bại: ${error.message}`);
+    }
+  },
+
+  /**
+   * Send Password Reset Email
+   */
+  async resetPasswordForEmail(email: string): Promise<void> {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) throw new Error('Vui lòng nhập địa chỉ email nhận mã đặt lại.');
+
+    if (supabase && isSupabaseConfigured) {
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo: `${window.location.origin}`,
+      });
+      if (error) throw new Error(error.message);
+      return;
+    }
+
+    // Local mode mock
+    return new Promise(resolve => setTimeout(resolve, 800));
+  },
+
+  /**
+   * Login as Demo User
+   */
   async loginAsDemo(): Promise<AuthResponse> {
     this.saveToRegistry(DEMO_USER, 'demo123');
     storage.set(USER_STORAGE_KEY, DEMO_USER);
@@ -294,6 +356,23 @@ export const authService = {
     return storage.get<UserAccount | null>(USER_STORAGE_KEY, null);
   },
 
+  /**
+   * Get active bearer token for backend API requests
+   */
+  async getBearerToken(): Promise<string> {
+    if (supabase && isSupabaseConfigured) {
+      const { data } = await supabase.auth.getSession();
+      if (data?.session?.access_token) {
+        return data.session.access_token;
+      }
+    }
+    const current = this.getCurrentUser();
+    return current ? `demo-token-${current.id}` : '';
+  },
+
+  /**
+   * Fetch latest profile from DB or Supabase Auth
+   */
   async getProfile(): Promise<UserAccount | null> {
     if (supabase && isSupabaseConfigured) {
       const { data: authData } = await supabase.auth.getUser();
@@ -305,10 +384,11 @@ export const authService = {
           .single();
 
         if (profile) {
-          return {
+          const user: UserAccount = {
             id: profile.id,
             email: profile.email,
             name: profile.name,
+            role: profile.role || 'user',
             educationLevel: profile.education_level || 'university',
             gradeOrYear: profile.grade_or_year || 'Năm 2',
             school: profile.school || '',
@@ -317,17 +397,23 @@ export const authService = {
             bio: profile.bio || '',
             avatarUrl: profile.avatar_url || '',
           };
+          storage.set(USER_STORAGE_KEY, user);
+          return user;
         }
       }
     }
     return storage.get<UserAccount | null>(USER_STORAGE_KEY, null);
   },
 
+  /**
+   * Update profile
+   */
   async updateProfile(profile: Partial<UserAccount>): Promise<UserAccount> {
     const current = (await this.getProfile()) || {
       id: `user-${Date.now()}`,
       email: 'student@studyos.edu.vn',
       name: 'Học viên StudyOS',
+      role: 'user',
       educationLevel: 'university',
       gradeOrYear: 'Năm 2',
       school: '',
@@ -343,6 +429,7 @@ export const authService = {
         id: updated.id,
         email: updated.email,
         name: updated.name,
+        role: updated.role || 'user',
         education_level: updated.educationLevel,
         grade_or_year: updated.gradeOrYear,
         school: updated.school,
@@ -369,7 +456,47 @@ export const authService = {
     return Boolean(storage.get<UserAccount | null>(USER_STORAGE_KEY, null));
   },
 
-  async ensureDefaultAuth(): Promise<void> {
-    // Unauthenticated users are not auto-logged in so they see login requirement
+  /**
+   * Listen to Supabase auth state changes (e.g. after Google OAuth redirect)
+   */
+  initAuthListener(onUserChange: (user: UserAccount | null) => void) {
+    if (supabase && isSupabaseConfigured) {
+      const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+          if (session?.user) {
+            const { data: profile } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+
+            const user: UserAccount = {
+              id: session.user.id,
+              email: session.user.email || '',
+              name: profile?.name || session.user.user_metadata?.name || session.user.user_metadata?.full_name || 'Học viên StudyOS',
+              role: profile?.role || 'user',
+              educationLevel: profile?.education_level || 'university',
+              gradeOrYear: profile?.grade_or_year || 'Năm 2',
+              school: profile?.school || 'Đại học Bách Khoa',
+              major: profile?.major || 'Khoa học Máy tính',
+              studentId: profile?.student_id || '',
+              bio: profile?.bio || '',
+              avatarUrl: profile?.avatar_url || session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || '',
+            };
+
+            storage.set(USER_STORAGE_KEY, user);
+            onUserChange(user);
+          }
+        } else if (event === 'SIGNED_OUT') {
+          storage.remove(USER_STORAGE_KEY);
+          onUserChange(null);
+        }
+      });
+
+      return () => {
+        authListener.subscription.unsubscribe();
+      };
+    }
+    return () => {};
   },
 };

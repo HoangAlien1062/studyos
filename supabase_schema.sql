@@ -1,31 +1,135 @@
 -- ==============================================================================
--- STUDYOS - SUPABASE DATABASE SCHEMA (POSTGRESQL DDL)
--- Paste and run this entire script into your Supabase SQL Editor:
--- Supabase Dashboard -> Project -> SQL Editor -> New query -> Run
+-- STUDYOS - SUPABASE DATABASE SCHEMA & IDENTITY SYSTEM (POSTGRESQL DDL)
+-- Supabase Auth as the Sole Identity Core + Google OAuth + RLS + Admin RBAC
+--
+-- How to apply:
+-- 1. Open your Supabase Project Dashboard
+-- 2. Navigate to SQL Editor -> New Query
+-- 3. Paste this script and click Run
 -- ==============================================================================
 
--- 0. Enable UUID Extension
+-- 0. Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- 1. USERS TABLE
+-- ==============================================================================
+-- 1. USERS TABLE (Linked directly to Supabase auth.users)
+-- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    name TEXT NOT NULL,
+    name TEXT NOT NULL DEFAULT 'Học viên StudyOS',
+    role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
     school TEXT DEFAULT 'Đại học Bách Khoa',
     major TEXT DEFAULT 'Công nghệ Thông tin & Khoa học Máy tính',
-    student_id TEXT DEFAULT '20235678',
-    education_level TEXT DEFAULT 'university', -- 'high_school' | 'university'
+    student_id TEXT DEFAULT '',
+    education_level TEXT DEFAULT 'university' CHECK (education_level IN ('high_school', 'university')),
     grade_or_year TEXT DEFAULT 'Năm 2',
-    bio TEXT DEFAULT 'Sinh viên năm 2 đam mê AI & Kỹ thuật lập trình. Mục tiêu GPA > 3.6',
-    avatar_url TEXT,
+    bio TEXT DEFAULT 'Học viên năng động tại StudyOS.',
+    avatar_url TEXT DEFAULT '',
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 2. USER SETTINGS TABLE
+-- Index on email & role
+CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
+CREATE INDEX IF NOT EXISTS idx_users_role ON public.users(role);
+
+-- ==============================================================================
+-- 2. ADMIN HELPER FUNCTION (Bypasses RLS recursion safely)
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM public.users
+        WHERE id = auth.uid() AND role = 'admin'
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ==============================================================================
+-- 3. AUTOMATIC PROFILE CREATION TRIGGER (Google OAuth & Email SignUp)
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+DECLARE
+    raw_name TEXT;
+    raw_avatar TEXT;
+    raw_edu TEXT;
+    raw_grade TEXT;
+    raw_school TEXT;
+    raw_major TEXT;
+BEGIN
+    -- Extract name from user metadata or fallback to email username
+    raw_name := COALESCE(
+        NEW.raw_user_meta_data->>'name',
+        NEW.raw_user_meta_data->>'full_name',
+        split_part(NEW.email, '@', 1)
+    );
+
+    -- Extract avatar URL from Google OAuth metadata if present
+    raw_avatar := COALESCE(
+        NEW.raw_user_meta_data->>'avatar_url',
+        NEW.raw_user_meta_data->>'picture',
+        ''
+    );
+
+    raw_edu := COALESCE(NEW.raw_user_meta_data->>'education_level', 'university');
+    raw_grade := COALESCE(NEW.raw_user_meta_data->>'grade_or_year', 'Năm 2');
+    raw_school := COALESCE(NEW.raw_user_meta_data->>'school', 'Đại học Bách Khoa');
+    raw_major := COALESCE(NEW.raw_user_meta_data->>'major', 'Khoa học Máy tính');
+
+    INSERT INTO public.users (
+        id,
+        email,
+        name,
+        role,
+        avatar_url,
+        education_level,
+        grade_or_year,
+        school,
+        major,
+        created_at,
+        updated_at
+    )
+    VALUES (
+        NEW.id,
+        NEW.email,
+        raw_name,
+        'user',
+        raw_avatar,
+        raw_edu,
+        raw_grade,
+        raw_school,
+        raw_major,
+        now(),
+        now()
+    )
+    ON CONFLICT (id) DO UPDATE SET
+        email = EXCLUDED.email,
+        name = COALESCE(NULLIF(public.users.name, 'Học viên StudyOS'), EXCLUDED.name),
+        avatar_url = COALESCE(NULLIF(public.users.avatar_url, ''), EXCLUDED.avatar_url),
+        updated_at = now();
+
+    -- Also insert default user_settings
+    INSERT INTO public.user_settings (user_id)
+    VALUES (NEW.id)
+    ON CONFLICT (user_id) DO NOTHING;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Recreate trigger on auth.users
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- ==============================================================================
+-- 4. USER SETTINGS TABLE
+-- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.user_settings (
     user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
     general JSONB DEFAULT '{"language": "vi", "timeFormat": "24h", "compactMode": false, "soundEnabled": true}'::jsonb,
@@ -36,10 +140,12 @@ CREATE TABLE IF NOT EXISTS public.user_settings (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 3. SUBJECTS TABLE
+-- ==============================================================================
+-- 5. SUBJECTS TABLE
+-- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.subjects (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL DEFAULT auth.uid() REFERENCES public.users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     code TEXT NOT NULL,
     teacher TEXT,
@@ -50,10 +156,12 @@ CREATE TABLE IF NOT EXISTS public.subjects (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 4. CHAPTERS TABLE
+-- ==============================================================================
+-- 6. CHAPTERS TABLE
+-- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.chapters (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL DEFAULT auth.uid() REFERENCES public.users(id) ON DELETE CASCADE,
     subject_id UUID NOT NULL REFERENCES public.subjects(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     description TEXT,
@@ -61,10 +169,12 @@ CREATE TABLE IF NOT EXISTS public.chapters (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 5. TOPICS TABLE
+-- ==============================================================================
+-- 7. TOPICS TABLE
+-- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.topics (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL DEFAULT auth.uid() REFERENCES public.users(id) ON DELETE CASCADE,
     chapter_id UUID NOT NULL REFERENCES public.chapters(id) ON DELETE CASCADE,
     subject_id UUID NOT NULL REFERENCES public.subjects(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
@@ -75,15 +185,19 @@ CREATE TABLE IF NOT EXISTS public.topics (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 6. DOCUMENTS TABLE
+-- ==============================================================================
+-- 8. DOCUMENTS TABLE (Metadata for Local, Supabase & Google Drive Storage)
+-- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL DEFAULT auth.uid() REFERENCES public.users(id) ON DELETE CASCADE,
     parent_folder_id UUID REFERENCES public.documents(id) ON DELETE CASCADE,
     subject_id UUID REFERENCES public.subjects(id) ON DELETE SET NULL,
     name TEXT NOT NULL,
     type TEXT NOT NULL, -- pdf, docx, pptx, txt, md, png, jpg, folder
     file_url TEXT,
+    storage_provider TEXT DEFAULT 'local', -- 'google_drive', 'supabase', 'local'
+    storage_file_id TEXT,                 -- Google Drive file ID or Supabase storage path
     storage_path TEXT,
     size_bytes BIGINT DEFAULT 0,
     is_favorite BOOLEAN DEFAULT false,
@@ -93,10 +207,12 @@ CREATE TABLE IF NOT EXISTS public.documents (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 7. NOTES TABLE
+-- ==============================================================================
+-- 9. NOTES TABLE
+-- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.notes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL DEFAULT auth.uid() REFERENCES public.users(id) ON DELETE CASCADE,
     subject_id UUID REFERENCES public.subjects(id) ON DELETE SET NULL,
     title TEXT NOT NULL,
     content_markdown TEXT NOT NULL,
@@ -107,10 +223,12 @@ CREATE TABLE IF NOT EXISTS public.notes (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 8. FLASHCARD DECKS TABLE
+-- ==============================================================================
+-- 10. FLASHCARD DECKS & FLASHCARDS TABLE
+-- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.flashcard_decks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL DEFAULT auth.uid() REFERENCES public.users(id) ON DELETE CASCADE,
     subject_id UUID REFERENCES public.subjects(id) ON DELETE SET NULL,
     title TEXT NOT NULL,
     description TEXT,
@@ -119,10 +237,9 @@ CREATE TABLE IF NOT EXISTS public.flashcard_decks (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 9. FLASHCARDS TABLE (SRS Spaced Repetition)
 CREATE TABLE IF NOT EXISTS public.flashcards (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL DEFAULT auth.uid() REFERENCES public.users(id) ON DELETE CASCADE,
     deck_id UUID NOT NULL REFERENCES public.flashcard_decks(id) ON DELETE CASCADE,
     front_content TEXT NOT NULL,
     back_content TEXT NOT NULL,
@@ -136,10 +253,12 @@ CREATE TABLE IF NOT EXISTS public.flashcards (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 10. QUESTIONS TABLE
+-- ==============================================================================
+-- 11. QUESTIONS TABLE
+-- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.questions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL DEFAULT auth.uid() REFERENCES public.users(id) ON DELETE CASCADE,
     subject_id UUID REFERENCES public.subjects(id) ON DELETE SET NULL,
     chapter_id UUID REFERENCES public.chapters(id) ON DELETE SET NULL,
     topic_id UUID REFERENCES public.topics(id) ON DELETE SET NULL,
@@ -155,10 +274,12 @@ CREATE TABLE IF NOT EXISTS public.questions (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 11. MISTAKES TABLE (Error Book / Sổ Lỗi Sai)
+-- ==============================================================================
+-- 12. MISTAKES TABLE (Error Logbook / Sổ Lỗi Sai)
+-- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.mistakes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL DEFAULT auth.uid() REFERENCES public.users(id) ON DELETE CASCADE,
     question_id UUID REFERENCES public.questions(id) ON DELETE SET NULL,
     question_content TEXT NOT NULL,
     options JSONB NOT NULL,
@@ -175,10 +296,12 @@ CREATE TABLE IF NOT EXISTS public.mistakes (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 12. EXAMS TABLE
+-- ==============================================================================
+-- 13. EXAMS & ATTEMPTS TABLE
+-- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.exams (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL DEFAULT auth.uid() REFERENCES public.users(id) ON DELETE CASCADE,
     subject_id UUID REFERENCES public.subjects(id) ON DELETE SET NULL,
     title TEXT NOT NULL,
     subject_name TEXT NOT NULL,
@@ -186,7 +309,6 @@ CREATE TABLE IF NOT EXISTS public.exams (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 13. EXAM QUESTIONS LINKING TABLE
 CREATE TABLE IF NOT EXISTS public.exam_questions (
     exam_id UUID NOT NULL REFERENCES public.exams(id) ON DELETE CASCADE,
     question_id UUID NOT NULL REFERENCES public.questions(id) ON DELETE CASCADE,
@@ -194,10 +316,9 @@ CREATE TABLE IF NOT EXISTS public.exam_questions (
     PRIMARY KEY (exam_id, question_id)
 );
 
--- 14. EXAM ATTEMPTS / SESSIONS TABLE
 CREATE TABLE IF NOT EXISTS public.exam_attempts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL DEFAULT auth.uid() REFERENCES public.users(id) ON DELETE CASCADE,
     exam_id UUID NOT NULL REFERENCES public.exams(id) ON DELETE CASCADE,
     user_answers JSONB NOT NULL DEFAULT '{}'::jsonb,
     score REAL NOT NULL DEFAULT 0,
@@ -211,10 +332,12 @@ CREATE TABLE IF NOT EXISTS public.exam_attempts (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 15. SCHEDULES TABLE
+-- ==============================================================================
+-- 14. SCHEDULES TABLE
+-- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.schedules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL DEFAULT auth.uid() REFERENCES public.users(id) ON DELETE CASCADE,
     subject_id UUID,
     subject_name TEXT NOT NULL,
     date DATE NOT NULL,
@@ -229,34 +352,37 @@ CREATE TABLE IF NOT EXISTS public.schedules (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 16. NOTIFICATIONS TABLE
+-- ==============================================================================
+-- 15. NOTIFICATIONS TABLE
+-- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.notifications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL DEFAULT auth.uid() REFERENCES public.users(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     message TEXT NOT NULL,
-    type TEXT NOT NULL DEFAULT 'info', -- 'info', 'reminder', 'warning', 'achievement'
+    type TEXT NOT NULL DEFAULT 'info',
     target_tab TEXT,
     target_id TEXT,
     is_read BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 17. AI CONVERSATIONS TABLE
+-- ==============================================================================
+-- 16. AI CONVERSATIONS & MESSAGES
+-- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.ai_conversations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL DEFAULT auth.uid() REFERENCES public.users(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     mode TEXT DEFAULT 'general',
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 18. AI MESSAGES TABLE
 CREATE TABLE IF NOT EXISTS public.ai_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     conversation_id UUID NOT NULL REFERENCES public.ai_conversations(id) ON DELETE CASCADE,
-    role TEXT NOT NULL, -- 'user', 'assistant', 'system'
+    role TEXT NOT NULL,
     content TEXT NOT NULL,
     attached_files JSONB DEFAULT '[]'::jsonb,
     timestamp_str TEXT NOT NULL,
@@ -264,97 +390,153 @@ CREATE TABLE IF NOT EXISTS public.ai_messages (
 );
 
 -- ==============================================================================
--- INDEXES FOR HIGH-PERFORMANCE QUERIES
+-- 17. SYSTEM AUDIT LOGS & BACKUPS (ADMIN EXCLUSIVE)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.system_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+    user_email TEXT,
+    action TEXT NOT NULL,
+    category TEXT NOT NULL, -- 'auth', 'storage', 'admin', 'ai', 'security'
+    details JSONB DEFAULT '{}'::jsonb,
+    ip_address TEXT,
+    user_agent TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.system_backups (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    admin_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+    filename TEXT NOT NULL,
+    file_size_bytes BIGINT DEFAULT 0,
+    storage_provider TEXT DEFAULT 'google_drive',
+    drive_file_id TEXT,
+    status TEXT DEFAULT 'completed', -- 'in_progress', 'completed', 'failed'
+    details JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ==============================================================================
+-- 18. HIGH-PERFORMANCE INDEXES
 -- ==============================================================================
 CREATE INDEX IF NOT EXISTS idx_subjects_user ON public.subjects(user_id);
-CREATE INDEX IF NOT EXISTS idx_chapters_subject ON public.chapters(subject_id);
-CREATE INDEX IF NOT EXISTS idx_topics_chapter ON public.topics(chapter_id);
-CREATE INDEX IF NOT EXISTS idx_topics_subject ON public.topics(subject_id);
+CREATE INDEX IF NOT EXISTS idx_chapters_user ON public.chapters(user_id);
+CREATE INDEX IF NOT EXISTS idx_topics_user ON public.topics(user_id);
 CREATE INDEX IF NOT EXISTS idx_documents_user ON public.documents(user_id);
-CREATE INDEX IF NOT EXISTS idx_documents_parent ON public.documents(parent_folder_id);
 CREATE INDEX IF NOT EXISTS idx_notes_user ON public.notes(user_id);
-CREATE INDEX IF NOT EXISTS idx_flashcards_deck ON public.flashcards(deck_id);
-CREATE INDEX IF NOT EXISTS idx_flashcards_next_review ON public.flashcards(next_review_date);
-CREATE INDEX IF NOT EXISTS idx_questions_subject ON public.questions(subject_id);
+CREATE INDEX IF NOT EXISTS idx_decks_user ON public.flashcard_decks(user_id);
+CREATE INDEX IF NOT EXISTS idx_flashcards_user ON public.flashcards(user_id);
 CREATE INDEX IF NOT EXISTS idx_questions_user ON public.questions(user_id);
 CREATE INDEX IF NOT EXISTS idx_mistakes_user ON public.mistakes(user_id);
 CREATE INDEX IF NOT EXISTS idx_exams_user ON public.exams(user_id);
-CREATE INDEX IF NOT EXISTS idx_exam_attempts_user ON public.exam_attempts(user_id);
-CREATE INDEX IF NOT EXISTS idx_schedules_user_date ON public.schedules(user_id, date);
-CREATE INDEX IF NOT EXISTS idx_notifications_user ON public.notifications(user_id, is_read);
-CREATE INDEX IF NOT EXISTS idx_ai_conversations_user ON public.ai_conversations(user_id);
-CREATE INDEX IF NOT EXISTS idx_ai_messages_conv ON public.ai_messages(conversation_id);
-CREATE INDEX IF NOT EXISTS idx_questions_difficulty_subject ON public.questions(subject_id, difficulty);
-CREATE INDEX IF NOT EXISTS idx_flashcards_deck_state ON public.flashcards(deck_id, state);
-CREATE INDEX IF NOT EXISTS idx_exams_status ON public.exams(user_id, status);
-CREATE INDEX IF NOT EXISTS idx_mistakes_count ON public.mistakes(user_id, review_count);
+CREATE INDEX IF NOT EXISTS idx_attempts_user ON public.exam_attempts(user_id);
+CREATE INDEX IF NOT EXISTS idx_schedules_user ON public.schedules(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifs_user ON public.notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_conv_user ON public.ai_conversations(user_id);
+CREATE INDEX IF NOT EXISTS idx_system_logs_created ON public.system_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_system_backups_created ON public.system_backups(created_at DESC);
 
 -- ==============================================================================
--- SUPABASE STORAGE BUCKET CREATION
+-- 19. ROW LEVEL SECURITY (RLS) POLICIES
+-- Strict Isolation: user_id = auth.uid() OR is_admin()
+-- ==============================================================================
+
+-- Enable RLS on all tables
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subjects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chapters ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.topics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.flashcard_decks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.flashcards ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.questions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.mistakes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exams ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_questions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.schedules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_backups ENABLE ROW LEVEL SECURITY;
+
+-- Helper macro to clean and setup standard user isolation policy
+DO $$
+DECLARE
+    tbl text;
+    user_tables text[] := ARRAY[
+        'user_settings', 'subjects', 'chapters', 'topics', 'documents', 'notes',
+        'flashcard_decks', 'flashcards', 'questions', 'mistakes', 'exams',
+        'exam_attempts', 'schedules', 'notifications', 'ai_conversations'
+    ];
+BEGIN
+    FOREACH tbl IN ARRAY user_tables LOOP
+        EXECUTE format('DROP POLICY IF EXISTS "User self access or admin" ON public.%I;', tbl);
+        EXECUTE format('CREATE POLICY "User self access or admin" ON public.%I FOR ALL TO authenticated USING (user_id = auth.uid() OR public.is_admin()) WITH CHECK (user_id = auth.uid() OR public.is_admin());', tbl, tbl);
+    END LOOP;
+END $$;
+
+-- Policies for public.users
+DROP POLICY IF EXISTS "Users can view own profile or admin" ON public.users;
+CREATE POLICY "Users can view own profile or admin" ON public.users
+    FOR SELECT TO authenticated
+    USING (id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "Users can update own profile or admin" ON public.users;
+CREATE POLICY "Users can update own profile or admin" ON public.users
+    FOR UPDATE TO authenticated
+    USING (id = auth.uid() OR public.is_admin())
+    WITH CHECK (id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "Users can insert own profile or admin" ON public.users;
+CREATE POLICY "Users can insert own profile or admin" ON public.users
+    FOR INSERT TO authenticated
+    WITH CHECK (id = auth.uid() OR public.is_admin());
+
+-- Policies for exam_questions (child of exams)
+DROP POLICY IF EXISTS "Exam questions access via parent exam" ON public.exam_questions;
+CREATE POLICY "Exam questions access via parent exam" ON public.exam_questions
+    FOR ALL TO authenticated
+    USING (EXISTS (SELECT 1 FROM public.exams WHERE exams.id = exam_questions.exam_id AND (exams.user_id = auth.uid() OR public.is_admin())))
+    WITH CHECK (EXISTS (SELECT 1 FROM public.exams WHERE exams.id = exam_questions.exam_id AND (exams.user_id = auth.uid() OR public.is_admin())));
+
+-- Policies for ai_messages (child of ai_conversations)
+DROP POLICY IF EXISTS "AI messages access via conversation" ON public.ai_messages;
+CREATE POLICY "AI messages access via conversation" ON public.ai_messages
+    FOR ALL TO authenticated
+    USING (EXISTS (SELECT 1 FROM public.ai_conversations WHERE ai_conversations.id = ai_messages.conversation_id AND (ai_conversations.user_id = auth.uid() OR public.is_admin())))
+    WITH CHECK (EXISTS (SELECT 1 FROM public.ai_conversations WHERE ai_conversations.id = ai_messages.conversation_id AND (ai_conversations.user_id = auth.uid() OR public.is_admin())));
+
+-- Policies for system_logs & system_backups (Admin Only)
+DROP POLICY IF EXISTS "Admin only logs" ON public.system_logs;
+CREATE POLICY "Admin only logs" ON public.system_logs
+    FOR ALL TO authenticated
+    USING (public.is_admin())
+    WITH CHECK (public.is_admin());
+
+DROP POLICY IF EXISTS "Admin only backups" ON public.system_backups;
+CREATE POLICY "Admin only backups" ON public.system_backups
+    FOR ALL TO authenticated
+    USING (public.is_admin())
+    WITH CHECK (public.is_admin());
+
+-- ==============================================================================
+-- 20. SUPABASE STORAGE BUCKET CONFIGURATION
 -- ==============================================================================
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('studyos-files', 'studyos-files', true)
 ON CONFLICT (id) DO NOTHING;
 
--- Grant public read access to the studyos-files bucket
-CREATE POLICY "Public Read Access"
-ON storage.objects FOR SELECT
-USING (bucket_id = 'studyos-files');
-
--- Allow service_role or authenticated users to insert/update/delete objects
-CREATE POLICY "Full Access For All Operations"
-ON storage.objects FOR ALL
+DROP POLICY IF EXISTS "Authenticated User Uploads" ON storage.objects;
+CREATE POLICY "Authenticated User Uploads"
+ON storage.objects FOR ALL TO authenticated
 USING (bucket_id = 'studyos-files')
 WITH CHECK (bucket_id = 'studyos-files');
 
--- ==============================================================================
--- DEFAULT SEED USER & ROW LEVEL SECURITY (RLS) POLICIES FOR PERSONAL APP
--- ==============================================================================
-
--- 1. Insert default user for initial setup & foreign keys
-INSERT INTO public.users (id, email, password_hash, name, school, major, student_id, education_level, grade_or_year, bio)
-VALUES (
-    '11111111-1111-1111-1111-111111111111',
-    'student@studyos.edu.vn',
-    'managed_by_client',
-    'Nguyễn Văn An',
-    'Đại học Bách Khoa TP.HCM',
-    'Khoa học Máy tính',
-    '2210456',
-    'university',
-    'Năm 2',
-    'Sinh viên năm 2 đam mê AI & Kỹ thuật lập trình. Mục tiêu GPA > 3.6'
-) ON CONFLICT (id) DO NOTHING;
-
--- 2. Set default user_id so inserts without user_id link to the default user automatically
-ALTER TABLE public.subjects ALTER COLUMN user_id SET DEFAULT '11111111-1111-1111-1111-111111111111';
-ALTER TABLE public.chapters ALTER COLUMN user_id SET DEFAULT '11111111-1111-1111-1111-111111111111';
-ALTER TABLE public.topics ALTER COLUMN user_id SET DEFAULT '11111111-1111-1111-1111-111111111111';
-ALTER TABLE public.documents ALTER COLUMN user_id SET DEFAULT '11111111-1111-1111-1111-111111111111';
-ALTER TABLE public.notes ALTER COLUMN user_id SET DEFAULT '11111111-1111-1111-1111-111111111111';
-ALTER TABLE public.flashcard_decks ALTER COLUMN user_id SET DEFAULT '11111111-1111-1111-1111-111111111111';
-ALTER TABLE public.flashcards ALTER COLUMN user_id SET DEFAULT '11111111-1111-1111-1111-111111111111';
-ALTER TABLE public.questions ALTER COLUMN user_id SET DEFAULT '11111111-1111-1111-1111-111111111111';
-ALTER TABLE public.mistakes ALTER COLUMN user_id SET DEFAULT '11111111-1111-1111-1111-111111111111';
-ALTER TABLE public.exams ALTER COLUMN user_id SET DEFAULT '11111111-1111-1111-1111-111111111111';
-ALTER TABLE public.exam_attempts ALTER COLUMN user_id SET DEFAULT '11111111-1111-1111-1111-111111111111';
-ALTER TABLE public.schedules ALTER COLUMN user_id SET DEFAULT '11111111-1111-1111-1111-111111111111';
-ALTER TABLE public.notifications ALTER COLUMN user_id SET DEFAULT '11111111-1111-1111-1111-111111111111';
-ALTER TABLE public.ai_conversations ALTER COLUMN user_id SET DEFAULT '11111111-1111-1111-1111-111111111111';
-
--- 3. Enable RLS and grant read/write access to anon & authenticated roles for client web app
-DO $$ 
-DECLARE 
-    t text;
-BEGIN
-    FOR t IN 
-        SELECT table_name 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-    LOOP
-        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t);
-        EXECUTE format('DROP POLICY IF EXISTS "Public full access %I" ON public.%I;', t, t);
-        EXECUTE format('CREATE POLICY "Public full access %I" ON public.%I FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);', t, t);
-    END LOOP;
-END $$;
-
+DROP POLICY IF EXISTS "Public Read Access" ON storage.objects;
+CREATE POLICY "Public Read Access"
+ON storage.objects FOR SELECT TO anon, authenticated
+USING (bucket_id = 'studyos-files');

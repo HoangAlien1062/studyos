@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
+  ArrowLeft,
   CheckCircle,
   Eye,
   EyeOff,
   GraduationCap,
+  KeyRound,
   Lock,
   LogIn,
   Mail,
@@ -16,7 +18,6 @@ import {
 import { useStudy } from '../../context/StudyContext';
 import { useToast } from '../../context/ToastContext';
 import { authService } from '../../services/authService';
-import { Badge } from '../common/Badge';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { Modal } from '../common/Modal';
@@ -26,25 +27,46 @@ interface AuthModalProps {
   onClose: () => void;
 }
 
+type AuthMode = 'login' | 'register' | 'forgot_password';
+
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const toast = useToast();
   const { triggerDataRefresh } = useStudy();
 
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<AuthMode>('login');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   // Form states
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const [educationLevel, setEducationLevel] = useState<'high_school' | 'university'>('university');
   const [gradeOrYear, setGradeOrYear] = useState('Năm 2');
   const [school, setSchool] = useState('');
 
-  const handleModeSwitch = (newMode: 'login' | 'register') => {
+  // Password strength calculation
+  const passwordStrength = useMemo(() => {
+    if (!password) return { score: 0, label: '', color: 'bg-slate-200' };
+    let score = 0;
+    if (password.length >= 6) score++;
+    if (password.length >= 8) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+
+    if (score <= 2) return { score: 1, label: 'Yếu', color: 'bg-red-500' };
+    if (score <= 4) return { score: 2, label: 'Trung bình', color: 'bg-amber-500' };
+    return { score: 3, label: 'Mạnh', color: 'bg-emerald-500' };
+  }, [password]);
+
+  const handleModeSwitch = (newMode: AuthMode) => {
     setMode(newMode);
     setShowPassword(false);
+    setShowConfirmPassword(false);
   };
 
   const handleEducationChange = (level: 'high_school' | 'university') => {
@@ -62,16 +84,60 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     }
   };
 
+  // Google Login Handler
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
+    try {
+      await authService.loginWithGoogle();
+      // Supabase will redirect to Google login page
+    } catch (err: any) {
+      toast.error(err.message || 'Không thể đăng nhập bằng Google lúc này.');
+      setGoogleLoading(false);
+    }
+  };
+
+  // Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 1. Forgot password
+    if (mode === 'forgot_password') {
+      if (!email.trim()) {
+        toast.error('Vui lòng nhập địa chỉ email của bạn.');
+        return;
+      }
+      setLoading(true);
+      try {
+        await authService.resetPasswordForEmail(email.trim());
+        toast.success('Đã gửi email khôi phục mật khẩu! Vui lòng kiểm tra hộp thư.');
+        handleModeSwitch('login');
+      } catch (err: any) {
+        toast.error(err.message || 'Gửi email khôi phục thất bại.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // 2. Validate email & password
     if (!email.trim() || !password.trim()) {
       toast.error('Vui lòng điền đầy đủ email và mật khẩu.');
       return;
     }
 
-    if (mode === 'register' && !name.trim()) {
-      toast.error('Vui lòng nhập họ và tên của bạn.');
-      return;
+    if (mode === 'register') {
+      if (!name.trim()) {
+        toast.error('Vui lòng nhập họ và tên của bạn.');
+        return;
+      }
+      if (password.length < 6) {
+        toast.error('Mật khẩu cần tối thiểu 6 ký tự.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        toast.error('Mật khẩu xác nhận không khớp. Vui lòng kiểm tra lại.');
+        return;
+      }
     }
 
     setLoading(true);
@@ -102,13 +168,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title=""
-      size="md"
-    >
-      <div className="pt-1 space-y-5 relative">
+    <Modal isOpen={isOpen} onClose={onClose} title="" size="md">
+      <div className="pt-1 space-y-4 relative">
         <button
           type="button"
           onClick={onClose}
@@ -121,51 +182,108 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         {/* Header Branding */}
         <div className="text-center space-y-1">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 mb-1 border border-indigo-100 dark:border-indigo-900/50 shadow-xs">
-            {mode === 'login' ? <LogIn className="w-6 h-6" /> : <Sparkles className="w-6 h-6" />}
+            {mode === 'login' ? (
+              <LogIn className="w-6 h-6" />
+            ) : mode === 'register' ? (
+              <Sparkles className="w-6 h-6" />
+            ) : (
+              <KeyRound className="w-6 h-6" />
+            )}
           </div>
           <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-            {mode === 'login' ? 'Đăng nhập vào StudyOS' : 'Tạo tài khoản học tập mới'}
+            {mode === 'login'
+              ? 'Đăng nhập vào StudyOS'
+              : mode === 'register'
+              ? 'Tạo tài khoản học tập mới'
+              : 'Đặt lại mật khẩu'}
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto">
             {mode === 'login'
-              ? 'Hệ điều hành học tập cá nhân hóa & trợ lý gia sư AI 24/7'
-              : 'Thiết lập không gian học tập thông minh dành riêng cho bạn'}
+              ? 'Hệ điều hành học tập cá nhân hóa & đồng bộ dữ liệu đa thiết bị'
+              : mode === 'register'
+              ? 'Thiết lập không gian học tập thông minh dành riêng cho bạn'
+              : 'Nhập email để nhận liên kết khôi phục mật khẩu tài khoản'}
           </p>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold">
-          <button
-            type="button"
-            onClick={() => handleModeSwitch('login')}
-            className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
-              mode === 'login'
-                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
-                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
-            }`}
-          >
-            <LogIn className="w-3.5 h-3.5" />
-            <span>Đăng nhập</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleModeSwitch('register')}
-            className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
-              mode === 'register'
-                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
-                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
-            }`}
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            <span>Tạo tài khoản mới</span>
-          </button>
-        </div>
+        {/* Tab Switcher (Only in Login & Register) */}
+        {mode !== 'forgot_password' && (
+          <div className="flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => handleModeSwitch('login')}
+              className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                mode === 'login'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+              }`}
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Đăng nhập</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeSwitch('register')}
+              className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                mode === 'register'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+              }`}
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>Tạo tài khoản mới</span>
+            </button>
+          </div>
+        )}
 
-        <form onSubmit={handleSubmit} className="space-y-3.5">
+        {/* Google OAuth Button */}
+        {mode !== 'forgot_password' && (
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={googleLoading}
+              className="w-full flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200 text-xs font-semibold shadow-xs transition-all disabled:opacity-50"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+                />
+              </svg>
+              <span>{googleLoading ? 'Đang chuyển hướng Google...' : 'Tiếp tục với Google'}</span>
+            </button>
+
+            <div className="relative py-1">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-200 dark:border-slate-800" />
+              </div>
+              <div className="relative flex justify-center text-[10px] uppercase">
+                <span className="bg-white dark:bg-slate-900 px-2 text-slate-400 font-semibold">
+                  Hoặc bằng Email & Mật khẩu
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-3">
           {mode === 'register' && (
             <>
               {/* Persona Switch: Cấp 3 vs Đại học */}
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Đối tượng học tập
                 </label>
@@ -173,7 +291,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                   <button
                     type="button"
                     onClick={() => handleEducationChange('high_school')}
-                    className={`p-2.5 rounded-xl border text-xs font-medium flex items-center justify-center gap-2 transition-all ${
+                    className={`p-2 rounded-xl border text-xs font-medium flex items-center justify-center gap-2 transition-all ${
                       educationLevel === 'high_school'
                         ? 'bg-indigo-50/80 dark:bg-indigo-950/60 border-indigo-500 text-indigo-700 dark:text-indigo-300 ring-2 ring-indigo-500/20'
                         : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
@@ -185,7 +303,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                   <button
                     type="button"
                     onClick={() => handleEducationChange('university')}
-                    className={`p-2.5 rounded-xl border text-xs font-medium flex items-center justify-center gap-2 transition-all ${
+                    className={`p-2 rounded-xl border text-xs font-medium flex items-center justify-center gap-2 transition-all ${
                       educationLevel === 'university'
                         ? 'bg-indigo-50/80 dark:bg-indigo-950/60 border-indigo-500 text-indigo-700 dark:text-indigo-300 ring-2 ring-indigo-500/20'
                         : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
@@ -206,8 +324,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 required
               />
 
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="space-y-1.5">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                     {educationLevel === 'high_school' ? 'Khối lớp' : 'Năm học'}
                   </label>
@@ -256,48 +374,113 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             required
           />
 
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Mật khẩu
-              </label>
-              {mode === 'register' && (
-                <span className="text-[10px] text-slate-400">Tối thiểu 6 ký tự</span>
+          {mode !== 'forgot_password' && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Mật khẩu
+                </label>
+                {mode === 'login' && (
+                  <button
+                    type="button"
+                    onClick={() => handleModeSwitch('forgot_password')}
+                    className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline"
+                  >
+                    Quên mật khẩu?
+                  </button>
+                )}
+                {mode === 'register' && (
+                  <span className="text-[10px] text-slate-400">Tối thiểu 6 ký tự</span>
+                )}
+              </div>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="w-full pl-9 pr-10 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {/* Password strength meter for registration */}
+              {mode === 'register' && password && (
+                <div className="pt-1 space-y-1">
+                  <div className="flex gap-1 h-1 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-300 ${passwordStrength.color}`}
+                      style={{ width: `${(passwordStrength.score / 3) * 100}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-400">
+                    <span>Độ mạnh: <strong className="text-slate-600 dark:text-slate-300">{passwordStrength.label}</strong></span>
+                  </div>
+                </div>
               )}
             </div>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                <Lock className="w-4 h-4" />
-              </div>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                className="w-full pl-9 pr-10 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
+          )}
 
+          {/* Confirm Password in Register Mode */}
+          {mode === 'register' && (
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Xác nhận mật khẩu
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className={`w-full pl-9 pr-10 py-2 text-xs rounded-xl border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-hidden focus:ring-2 ${
+                    confirmPassword && password !== confirmPassword
+                      ? 'border-red-400 focus:ring-red-400'
+                      : 'border-slate-200 dark:border-slate-700 focus:ring-indigo-500'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {confirmPassword && password !== confirmPassword && (
+                <p className="text-[10px] text-red-500">Mật khẩu xác nhận không khớp</p>
+              )}
+            </div>
+          )}
+
+          {/* Action Button */}
           <div className="pt-2 space-y-2">
             <Button
               type="submit"
               variant="primary"
-              className="w-full justify-center py-2.5 text-xs font-semibold shadow-sm"
+              className="w-full justify-center py-2.5 text-xs font-semibold shadow-xs"
               disabled={loading}
               leftIcon={
                 mode === 'login' ? (
                   <LogIn className="w-4 h-4" />
-                ) : (
+                ) : mode === 'register' ? (
                   <UserPlus className="w-4 h-4" />
+                ) : (
+                  <Mail className="w-4 h-4" />
                 )
               }
             >
@@ -305,65 +488,72 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 ? 'Đang xử lý...'
                 : mode === 'login'
                 ? 'Đăng nhập vào StudyOS'
-                : 'Hoàn tất đăng ký tài khoản'}
+                : mode === 'register'
+                ? 'Hoàn tất đăng ký tài khoản'
+                : 'Gửi liên kết đặt lại mật khẩu'}
             </Button>
 
-            <div className="text-center pt-1">
-              <button
-                type="button"
-                onClick={() => handleModeSwitch(mode === 'login' ? 'register' : 'login')}
-                className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium transition-colors"
-              >
-                {mode === 'login'
-                  ? 'Chưa có tài khoản? Nhấn để tạo tài khoản mới'
-                  : 'Đã có tài khoản? Quay lại màn hình đăng nhập'}
-              </button>
-            </div>
-
-            <div className="relative py-2">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200 dark:border-slate-800" />
+            {mode === 'forgot_password' ? (
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleModeSwitch('login')}
+                  className="inline-flex items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Quay lại Đăng nhập</span>
+                </button>
               </div>
-              <div className="relative flex justify-center text-[10px] uppercase">
-                <span className="bg-white dark:bg-slate-900 px-2 text-slate-400 font-semibold">
-                  Hoặc trải nghiệm nhanh
-                </span>
+            ) : (
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleModeSwitch(mode === 'login' ? 'register' : 'login')}
+                  className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium transition-colors"
+                >
+                  {mode === 'login'
+                    ? 'Chưa có tài khoản? Nhấn để tạo tài khoản mới'
+                    : 'Đã có tài khoản? Quay lại màn hình đăng nhập'}
+                </button>
               </div>
-            </div>
+            )}
 
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="justify-center text-xs"
-                onClick={async () => {
-                  try {
-                    await authService.loginAsDemo();
-                    toast.success('Đã đăng nhập bằng tài khoản Demo học viên!');
-                    triggerDataRefresh();
+            {/* Quick Demo Options */}
+            {mode !== 'forgot_password' && (
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="justify-center text-xs"
+                  onClick={async () => {
+                    try {
+                      await authService.loginAsDemo();
+                      toast.success('Đã đăng nhập bằng tài khoản Demo học viên!');
+                      triggerDataRefresh();
+                      onClose();
+                    } catch (e: any) {
+                      toast.error('Không thể đăng nhập tài khoản Demo');
+                    }
+                  }}
+                >
+                  🎓 Tài khoản Demo
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="justify-center text-xs text-slate-600 dark:text-slate-400"
+                  onClick={() => {
                     onClose();
-                  } catch (e: any) {
-                    toast.error('Không thể đăng nhập tài khoản Demo');
-                  }
-                }}
-              >
-                🎓 Tài khoản Demo
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="justify-center text-xs text-slate-600 dark:text-slate-400"
-                onClick={() => {
-                  onClose();
-                  toast.info('Bạn đang xem ở chế độ Khách. Nhấn "Đăng nhập" ở góc phải bất kỳ lúc nào để lưu dữ liệu.');
-                }}
-              >
-                👀 Xem trước giao diện
-              </Button>
-            </div>
+                    toast.info('Bạn đang xem ở chế độ Khách. Dữ liệu học tập sẽ được lưu vào đám mây khi bạn đăng nhập.');
+                  }}
+                >
+                  👀 Xem trước giao diện
+                </Button>
+              </div>
+            )}
           </div>
         </form>
       </div>

@@ -30,7 +30,7 @@ export const questionService = {
         if (filters?.source) query = query.eq('source', filters.source);
 
         const { data, error } = await query;
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
           let list: QuestionItem[] = data.map(q => ({
             id: q.id,
             content: q.content,
@@ -124,10 +124,12 @@ export const questionService = {
 
     if (supabase && isSupabaseConfigured) {
       try {
+        const { data: authData } = await supabase.auth.getUser();
         const user = await authService.getProfile();
+        const userId = authData?.user?.id || user?.id;
         await supabase.from('questions').upsert({
           id: saved.id,
-          user_id: user.id,
+          user_id: userId,
           content: saved.content,
           options: saved.options,
           correct_option_id: saved.correctOptionId,

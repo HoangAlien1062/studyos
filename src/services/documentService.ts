@@ -1,9 +1,18 @@
-import { INITIAL_DOCUMENTS } from '../data/initialDocuments';
 import { supabase, isSupabaseConfigured, uploadToSupabaseStorage } from '../lib/supabase';
 import { DocumentFileType, DocumentItem } from '../types/document';
+import { authService } from './authService';
 import { storage } from './storage';
 
 const DOCUMENTS_KEY = 'documents';
+
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+  });
+}
 
 export const documentService = {
   async getAllDocuments(): Promise<DocumentItem[]> {
@@ -14,7 +23,7 @@ export const documentService = {
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
           const mapped: DocumentItem[] = data.map(d => ({
             id: d.id,
             name: d.name,
@@ -69,8 +78,11 @@ export const documentService = {
 
     if (supabase && isSupabaseConfigured) {
       try {
+        const { data: authData } = await supabase.auth.getUser();
+        const userId = authData?.user?.id;
         await supabase.from('documents').upsert({
           id: saved.id,
+          user_id: userId,
           name: saved.name,
           type: saved.type,
           parent_folder_id: saved.parentFolderId || null,
@@ -203,11 +215,46 @@ export const documentService = {
       }
     }
 
-    // Upload to Supabase Storage Online if configured
+    // 1. Try uploading to backend /api/storage/upload (Google Drive / Storage Server)
+    try {
+      const token = await authService.getBearerToken();
+      if (token) {
+        const base64Data = await fileToBase64(file);
+        const res = await fetch('/api/storage/upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name: fileName,
+            mimeType: file.type || 'application/octet-stream',
+            contentBase64: base64Data,
+            subjectId,
+            parentFolderId,
+          }),
+        });
+
+        if (res.ok) {
+          const json = await res.json();
+          if (json.file) {
+            content = `Đã lưu trữ an toàn trên Google Drive hệ thống (ID: ${json.file.driveFileId || json.file.id})\n\n` + content;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Storage] Backend upload attempt bypassed:', e);
+    }
+
+    // 2. Fallback to Supabase Storage if configured
     if (supabase && isSupabaseConfigured) {
-      const storageResult = await uploadToSupabaseStorage(file, 'user-docs');
-      if (storageResult) {
-        content = `Đã lưu trên Supabase Storage Online: ${storageResult.url}\n\n` + content;
+      try {
+        const storageResult = await uploadToSupabaseStorage(file, 'user-docs');
+        if (storageResult) {
+          content = `Đã lưu trên Supabase Storage Online: ${storageResult.url}\n\n` + content;
+        }
+      } catch (e) {
+        console.warn('[Supabase Storage] Fallback upload error:', e);
       }
     }
 

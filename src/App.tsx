@@ -17,6 +17,7 @@ import { AnalyticsPage } from './pages/analytics/AnalyticsPage';
 import { AIAssistantPage } from './pages/ai/AIAssistantPage';
 import { ProfilePage } from './pages/profile/ProfilePage';
 import { SettingsPage } from './pages/settings/SettingsPage';
+import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
 
 const AppContent: React.FC = () => {
   const { activeTab } = useStudy();
@@ -49,6 +50,8 @@ const AppContent: React.FC = () => {
         return <ProfilePage />;
       case 'settings':
         return <SettingsPage />;
+      case 'admin':
+        return <AdminDashboardPage />;
       default:
         return <DashboardPage />;
     }

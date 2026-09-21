@@ -13,7 +13,8 @@ export type NavigationTab =
   | 'analytics'
   | 'ai'
   | 'settings'
-  | 'profile';
+  | 'profile'
+  | 'admin';
 
 export interface ToastMessage {
   id: string;

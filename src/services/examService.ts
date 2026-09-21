@@ -22,7 +22,7 @@ export const examService = {
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (!error && examsData && examsData.length > 0) {
+        if (!error && examsData) {
           const { data: attemptsData } = await supabase.from('exam_attempts').select('*');
           const mapped: ExamSession[] = examsData.map(e => {
             const attempt = attemptsData?.find(a => a.exam_id === e.id);
@@ -94,10 +94,12 @@ export const examService = {
 
     if (supabase && isSupabaseConfigured) {
       try {
+        const { data: authData } = await supabase.auth.getUser();
         const user = await authService.getProfile();
+        const userId = authData?.user?.id || user?.id;
         await supabase.from('exams').insert({
           id: newExam.id,
-          user_id: user.id,
+          user_id: userId,
           title: newExam.title,
           subject_id: newExam.subjectId,
           subject_name: newExam.subjectName,
@@ -167,10 +169,12 @@ export const examService = {
     // 5. Lưu kết quả thi vào Supabase exam_attempts
     if (supabase && isSupabaseConfigured) {
       try {
+        const { data: authData } = await supabase.auth.getUser();
         const user = await authService.getProfile();
+        const userId = authData?.user?.id || user?.id;
         await supabase.from('exam_attempts').upsert({
           exam_id: exam.id,
-          user_id: user.id,
+          user_id: userId,
           user_answers: answers,
           score: exam.score,
           accuracy_percentage: exam.accuracyPercentage,

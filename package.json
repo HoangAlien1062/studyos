@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "server": "npx tsx server/standalone.ts",
-    "test": "npx tsx src/tests/learningEngine.test.ts && npx tsx src/tests/aiEngine.test.ts && npx tsx src/tests/systemIntegration.test.ts"
+    "test": "npx tsx src/tests/learningEngine.test.ts && npx tsx src/tests/aiEngine.test.ts && npx tsx src/tests/systemIntegration.test.ts && npx tsx src/tests/authAndStorageIntegration.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

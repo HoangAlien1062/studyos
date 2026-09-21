@@ -16,7 +16,7 @@ export const mistakeService = {
         if (filters?.topicId) query = query.eq('topic_id', filters.topicId);
 
         const { data, error } = await query;
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
           let mapped: MistakeItem[] = data.map(m => ({
             id: m.id,
             questionId: m.question_id || undefined,
@@ -175,10 +175,12 @@ export const mistakeService = {
 
     if (supabase && isSupabaseConfigured) {
       try {
+        const { data: authData } = await supabase.auth.getUser();
         const user = await authService.getProfile();
+        const userId = authData?.user?.id || user?.id;
         await supabase.from('mistakes').insert({
           id: newMistake.id,
-          user_id: user.id,
+          user_id: userId,
           question_id: newMistake.questionId,
           question_content: newMistake.questionContent,
           options: newMistake.options,

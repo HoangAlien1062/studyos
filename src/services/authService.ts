@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { supabase, isSupabaseConfigured, ensureSupabaseOnline } from '../lib/supabase';
 import { storage } from './storage';
 
 export interface UserAccount {
@@ -86,6 +86,10 @@ export const authService = {
     const defaultSchool = educationLevel === 'high_school' ? 'Trường THPT' : 'Trường Đại học';
     const defaultMajor = educationLevel === 'high_school' ? 'Khối Tự nhiên (Toán, Lý, Hóa)' : 'Khoa học Máy tính';
 
+    if (!isSupabaseConfigured) {
+      await ensureSupabaseOnline();
+    }
+
     if (supabase && isSupabaseConfigured) {
       const { data: authData, error } = await supabase.auth.signUp({
         email: cleanEmail,
@@ -170,6 +174,10 @@ export const authService = {
    */
   async login(email: string, password?: string): Promise<AuthResponse> {
     const cleanEmail = email.trim().toLowerCase();
+
+    if (!isSupabaseConfigured) {
+      await ensureSupabaseOnline();
+    }
 
     if (supabase && isSupabaseConfigured) {
       if (!password) throw new Error('Vui lòng nhập mật khẩu đăng nhập.');
@@ -256,6 +264,10 @@ export const authService = {
    * Standard user authentication only - never asks for Google Drive permissions
    */
   async loginWithGoogle(): Promise<void> {
+    if (!supabase || !isSupabaseConfigured) {
+      await ensureSupabaseOnline();
+    }
+
     if (!supabase || !isSupabaseConfigured) {
       throw new Error('Supabase chưa được cấu hình. Vui lòng kiểm tra biến môi trường VITE_SUPABASE_URL và VITE_SUPABASE_ANON_KEY.');
     }

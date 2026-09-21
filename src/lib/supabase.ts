@@ -3,12 +3,22 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 const CUSTOM_URL_KEY = 'studyos_custom_supabase_url';
 const CUSTOM_KEY_KEY = 'studyos_custom_supabase_anon_key';
 
-const getEnvVar = (key: string): string => {
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
-    return import.meta.env[key];
+// Statically accessed environment variables (Required by Vite for build-time replacement)
+const STATIC_VITE_URL = import.meta.env?.VITE_SUPABASE_URL || '';
+const STATIC_VITE_KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY || '';
+
+const getEnvVar = (key: 'VITE_SUPABASE_URL' | 'VITE_SUPABASE_ANON_KEY'): string => {
+  if (key === 'VITE_SUPABASE_URL') {
+    if (STATIC_VITE_URL) return STATIC_VITE_URL;
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+    }
   }
-  if (typeof process !== 'undefined' && process.env && process.env[key]) {
-    return process.env[key];
+  if (key === 'VITE_SUPABASE_ANON_KEY') {
+    if (STATIC_VITE_KEY) return STATIC_VITE_KEY;
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+    }
   }
   return '';
 };
@@ -76,6 +86,32 @@ export function initSupabase(url?: string, anonKey?: string): boolean {
 
 // Initialize on module load
 initSupabase();
+
+/**
+ * Auto-recovery: If client hasn't loaded config from static Vite build,
+ * fetch the public configuration seamlessly from the backend serverless API
+ */
+export async function ensureSupabaseOnline(): Promise<boolean> {
+  if (isSupabaseConfigured && supabase) return true;
+
+  try {
+    const res = await fetch('/api/auth/config');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.supabaseUrl && data.supabaseAnonKey) {
+        return initSupabase(data.supabaseUrl, data.supabaseAnonKey);
+      }
+    }
+  } catch (err) {
+    console.warn('[Supabase] Auto-recovery config check error:', err);
+  }
+  return isSupabaseConfigured;
+}
+
+// Trigger auto-recovery in background
+if (!isSupabaseConfigured && typeof window !== 'undefined') {
+  ensureSupabaseOnline();
+}
 
 export function saveCustomSupabaseConfig(url: string, anonKey: string): boolean {
   try {

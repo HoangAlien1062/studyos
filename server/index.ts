@@ -40,6 +40,19 @@ export async function handleServerRequest(req: IncomingMessage, res: ServerRespo
     return true;
   }
 
+  // Public Client Supabase Config endpoint (to ensure multi-device & Vercel zero-fail connection)
+  if (url === '/api/auth/config') {
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(
+      JSON.stringify({
+        supabaseUrl: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '',
+        supabaseAnonKey: process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '',
+      })
+    );
+    return true;
+  }
+
   // 1. Dispatch Storage API (/api/storage/*)
   if (url.startsWith('/api/storage')) {
     const handled = await handleStorageRequest(req, res);

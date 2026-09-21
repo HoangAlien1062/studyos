@@ -8,8 +8,48 @@ import { handleAIRequest } from './ai/index';
 import { handleStorageRequest } from './storage/storageController';
 import { handleAdminRequest } from './admin/adminController';
 
+/**
+ * Resolve request URL considering Vercel rewrites, x-matched-path, and query parameters
+ */
+export function resolveRequestUrl(req: IncomingMessage): string {
+  const rawUrl = req.url || '';
+  const headers = req.headers || {};
+
+  // 1. Direct API routes (not index rewrite)
+  if (rawUrl.startsWith('/api/') && !rawUrl.startsWith('/api/index')) {
+    return rawUrl;
+  }
+
+  // 2. Matched path from Vercel header
+  const matchedPath = (headers['x-matched-path'] as string) || (headers['x-vercel-matched-path'] as string);
+  if (matchedPath && matchedPath.startsWith('/api/') && !matchedPath.startsWith('/api/index')) {
+    return matchedPath;
+  }
+
+  // 3. Query param path (?path=admin/storage/test) from rewrite
+  try {
+    const urlObj = new URL(rawUrl, 'http://localhost');
+    const pathParam = urlObj.searchParams.get('path');
+    if (pathParam) {
+      const cleanPath = pathParam.startsWith('/') ? pathParam : `/${pathParam}`;
+      urlObj.searchParams.delete('path');
+      const search = urlObj.searchParams.toString();
+      return `/api${cleanPath}${search ? `?${search}` : ''}`;
+    }
+  } catch {}
+
+  // 4. Forwarded URI header
+  const forwardedUri = (headers['x-forwarded-uri'] as string) || (headers['x-original-uri'] as string);
+  if (forwardedUri && forwardedUri.startsWith('/api/') && !forwardedUri.startsWith('/api/index')) {
+    return forwardedUri;
+  }
+
+  return rawUrl;
+}
+
 export async function handleServerRequest(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
-  const url = req.url || '';
+  const url = resolveRequestUrl(req);
+  req.url = url;
 
   // Handle CORS preflight OPTIONS requests
   if (req.method === 'OPTIONS') {

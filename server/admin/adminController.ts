@@ -48,6 +48,16 @@ function logAdminAction(adminEmail: string, action: string, category: string, de
  * Helper to parse JSON body from IncomingMessage
  */
 async function parseJsonBody<T = any>(req: IncomingMessage): Promise<T> {
+  if ((req as any).body) {
+    if (typeof (req as any).body === 'object') return (req as any).body as T;
+    if (typeof (req as any).body === 'string') {
+      try {
+        return JSON.parse((req as any).body) as T;
+      } catch {
+        return {} as T;
+      }
+    }
+  }
   return new Promise((resolve, reject) => {
     let raw = '';
     req.on('data', chunk => { raw += chunk; });
@@ -75,12 +85,13 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
     return false;
   }
 
-  // All /api/admin/* endpoints strictly require Admin role
-  const admin = await requireAdmin(req, res);
-  if (!admin) return true;
+  try {
+    // All /api/admin/* endpoints strictly require Admin role
+    const admin = await requireAdmin(req, res);
+    if (!admin) return true;
 
-  const cleanUrl = url.split('?')[0];
-  const method = req.method?.toUpperCase();
+    const cleanUrl = url.split('?')[0];
+    const method = req.method?.toUpperCase();
 
   // 1. GET /api/admin/overview
   if (cleanUrl === '/api/admin/overview' && method === 'GET') {
@@ -304,4 +315,13 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
   }
 
   return false;
+  } catch (err: any) {
+    console.error('[AdminController Error]:', err);
+    if (!res.headersSent) {
+      res.statusCode = 500;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ error: err?.message || 'Lỗi xử lý yêu cầu quản trị' }));
+    }
+    return true;
+  }
 }

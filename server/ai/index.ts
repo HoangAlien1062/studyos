@@ -14,6 +14,16 @@ import { AIMode, AIProviderId, ChatMessage, SourceCitation, StreamChunk } from '
 
 // Helper to parse JSON body from incoming Node HTTP request
 async function parseJsonBody<T = any>(req: IncomingMessage): Promise<T> {
+  if ((req as any).body) {
+    if (typeof (req as any).body === 'object') return (req as any).body as T;
+    if (typeof (req as any).body === 'string') {
+      try {
+        return JSON.parse((req as any).body) as T;
+      } catch {
+        return {} as T;
+      }
+    }
+  }
   return new Promise((resolve, reject) => {
     let raw = '';
     req.on('data', chunk => {

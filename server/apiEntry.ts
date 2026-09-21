@@ -1,8 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { handleServerRequest } from '../server/index';
+import { handleServerRequest } from './index';
 
 /**
- * Vercel Serverless Function entry point
+ * Vercel Serverless Function entry point source
+ * Bundled by esbuild into api/index.js
  * Dispatches all /api/* requests (AI, Google Drive Storage, Admin, Health)
  */
 export default async function handler(req: IncomingMessage, res: ServerResponse) {

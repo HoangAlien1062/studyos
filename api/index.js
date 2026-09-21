@@ -3454,7 +3454,7 @@ async function handleServerRequest(req, res) {
   return false;
 }
 
-// api/index.ts
+// server/apiEntry.ts
 async function handler(req, res) {
   try {
     const handled = await handleServerRequest(req, res);

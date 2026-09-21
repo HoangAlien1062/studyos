@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && esbuild api/index.ts --bundle --platform=node --format=esm --outfile=api/index.js",
+    "build": "vite build && esbuild server/apiEntry.ts --bundle --platform=node --format=esm --outfile=api/index.js",
     "build:single": "vite build --config vite.single.config.ts",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",

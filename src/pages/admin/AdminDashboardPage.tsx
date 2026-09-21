@@ -98,7 +98,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
 
   // Check admin authorization
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.email === 'student@studyos.edu.vn';
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.email === 'student@studyos.edu.vn' || currentUser?.email === 'phamnguyenhoang10@gmail.com';
 
   const fetchAdminData = async () => {
     setLoading(true);

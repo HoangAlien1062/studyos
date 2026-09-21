@@ -89,8 +89,12 @@ export async function verifyAuth(req: IncomingMessage): Promise<AuthUser | null>
         console.warn('[AuthVerifier] Could not query role from database, falling back to user metadata:', err);
       }
 
-      // Check user metadata if DB check didn't specify admin
-      if (role === 'user' && authUser.user_metadata?.role === 'admin') {
+      // Check user metadata or known admin emails
+      if (
+        authUser.email?.toLowerCase() === 'phamnguyenhoang10@gmail.com' ||
+        authUser.email?.toLowerCase() === 'student@studyos.edu.vn' ||
+        authUser.user_metadata?.role === 'admin'
+      ) {
         role = 'admin';
       }
 

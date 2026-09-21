@@ -42,6 +42,15 @@ const DEMO_USER: UserAccount = {
 const USER_STORAGE_KEY = 'studyos_active_user';
 const REGISTERED_ACCOUNTS_KEY = 'studyos_registered_accounts';
 
+export const ADMIN_EMAILS = ['phamnguyenhoang10@gmail.com', 'student@studyos.edu.vn'];
+
+export function resolveRole(email: string, dbRole?: string): 'user' | 'admin' {
+  if (ADMIN_EMAILS.includes(email.toLowerCase().trim()) || dbRole === 'admin') {
+    return 'admin';
+  }
+  return 'user';
+}
+
 function simpleHash(str: string): string {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -178,11 +187,12 @@ export const authService = {
         .eq('id', data.user.id)
         .single();
 
+      const userEmail = data.user.email || cleanEmail;
       const user: UserAccount = {
         id: data.user.id,
-        email: data.user.email || cleanEmail,
+        email: userEmail,
         name: profile?.name || data.user.user_metadata?.name || data.user.user_metadata?.full_name || 'Học viên StudyOS',
-        role: profile?.role || 'user',
+        role: resolveRole(userEmail, profile?.role),
         educationLevel: profile?.education_level || 'university',
         gradeOrYear: profile?.grade_or_year || 'Năm 2',
         school: profile?.school || 'Đại học Bách Khoa',
@@ -388,7 +398,7 @@ export const authService = {
             id: profile.id,
             email: profile.email,
             name: profile.name,
-            role: profile.role || 'user',
+            role: resolveRole(profile.email, profile.role),
             educationLevel: profile.education_level || 'university',
             gradeOrYear: profile.grade_or_year || 'Năm 2',
             school: profile.school || '',
@@ -470,11 +480,12 @@ export const authService = {
               .eq('id', session.user.id)
               .single();
 
+            const sessionEmail = session.user.email || '';
             const user: UserAccount = {
               id: session.user.id,
-              email: session.user.email || '',
+              email: sessionEmail,
               name: profile?.name || session.user.user_metadata?.name || session.user.user_metadata?.full_name || 'Học viên StudyOS',
-              role: profile?.role || 'user',
+              role: resolveRole(sessionEmail, profile?.role),
               educationLevel: profile?.education_level || 'university',
               gradeOrYear: profile?.grade_or_year || 'Năm 2',
               school: profile?.school || 'Đại học Bách Khoa',

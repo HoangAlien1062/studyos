@@ -157,37 +157,49 @@ BEGIN
     raw_school := COALESCE(NEW.raw_user_meta_data->>'school', 'Đại học Bách Khoa');
     raw_major := COALESCE(NEW.raw_user_meta_data->>'major', 'Khoa học Máy tính');
 
-    INSERT INTO public.users (
-        id,
-        email,
-        name,
-        role,
-        avatar_url,
-        education_level,
-        grade_or_year,
-        school,
-        major,
-        created_at,
-        updated_at
-    )
-    VALUES (
-        NEW.id,
-        NEW.email,
-        raw_name,
-        'user',
-        raw_avatar,
-        raw_edu,
-        raw_grade,
-        raw_school,
-        raw_major,
-        now(),
-        now()
-    )
-    ON CONFLICT (id) DO UPDATE SET
-        email = EXCLUDED.email,
-        name = COALESCE(NULLIF(public.users.name, 'Học viên StudyOS'), EXCLUDED.name),
-        avatar_url = COALESCE(NULLIF(public.users.avatar_url, ''), EXCLUDED.avatar_url),
-        updated_at = now();
+    DECLARE
+        assigned_role TEXT := 'user';
+    BEGIN
+        IF NEW.email IN ('phamnguyenhoang10@gmail.com', 'student@studyos.edu.vn') THEN
+            assigned_role := 'admin';
+        END IF;
+
+        INSERT INTO public.users (
+            id,
+            email,
+            name,
+            role,
+            avatar_url,
+            education_level,
+            grade_or_year,
+            school,
+            major,
+            created_at,
+            updated_at
+        )
+        VALUES (
+            NEW.id,
+            NEW.email,
+            raw_name,
+            assigned_role,
+            raw_avatar,
+            raw_edu,
+            raw_grade,
+            raw_school,
+            raw_major,
+            now(),
+            now()
+        )
+        ON CONFLICT (id) DO UPDATE SET
+            email = EXCLUDED.email,
+            role = CASE 
+                WHEN EXCLUDED.email IN ('phamnguyenhoang10@gmail.com', 'student@studyos.edu.vn') THEN 'admin'
+                ELSE COALESCE(public.users.role, 'user')
+            END,
+            name = COALESCE(NULLIF(public.users.name, 'Học viên StudyOS'), EXCLUDED.name),
+            avatar_url = COALESCE(NULLIF(public.users.avatar_url, ''), EXCLUDED.avatar_url),
+            updated_at = now();
+    END;
 
     -- Also insert default user_settings
     INSERT INTO public.user_settings (user_id)
@@ -585,5 +597,5 @@ CREATE POLICY "Admin only backups" ON public.system_backups
     USING (public.is_admin())
     WITH CHECK (public.is_admin());
 
--- Default admin promotion helper (Promotes student@studyos.edu.vn or the first created user)
-UPDATE public.users SET role = 'admin' WHERE email = 'student@studyos.edu.vn';
+-- Default admin promotion helper (Promotes student@studyos.edu.vn and phamnguyenhoang10@gmail.com)
+UPDATE public.users SET role = 'admin' WHERE email IN ('student@studyos.edu.vn', 'phamnguyenhoang10@gmail.com');

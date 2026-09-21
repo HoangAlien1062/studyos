@@ -110,7 +110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onMobileClose })
       <div className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
         {[
           ...NAV_ITEMS,
-          ...(currentUser?.role === 'admin' || currentUser?.email === 'student@studyos.edu.vn'
+          ...(currentUser?.role === 'admin' || currentUser?.email === 'student@studyos.edu.vn' || currentUser?.email === 'phamnguyenhoang10@gmail.com'
             ? [{ id: 'admin' as NavigationTab, label: '🛡️ Quản trị Admin', icon: Shield }]
             : []),
         ].map(item => {

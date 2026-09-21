@@ -1,5 +1,9 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+export const DEFAULT_SUPABASE_URL = 'https://mwxlqlalmpbclzbmqmvm.supabase.co';
+export const DEFAULT_SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13eGxxbGFsbXBiY2x6Ym1xbXZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk5MDQ5NjgsImV4cCI6MjEwNTQ4MDk2OH0.QouXlyV4kezKb9r7BE0q_FByttj4ury-75d5OunxZVU';
+
 const CUSTOM_URL_KEY = 'studyos_custom_supabase_url';
 const CUSTOM_KEY_KEY = 'studyos_custom_supabase_anon_key';
 
@@ -8,24 +12,26 @@ function readEnv(key: 'VITE_SUPABASE_URL' | 'VITE_SUPABASE_ANON_KEY'): string {
   try {
     if (key === 'VITE_SUPABASE_URL') {
       const val = import.meta.env.VITE_SUPABASE_URL;
-      if (val) return val;
+      if (val && typeof val === 'string' && val.startsWith('https://')) return val;
     }
     if (key === 'VITE_SUPABASE_ANON_KEY') {
       const val = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      if (val) return val;
+      if (val && typeof val === 'string' && val.length > 20) return val;
     }
   } catch {}
 
   if (typeof process !== 'undefined' && process.env) {
     if (key === 'VITE_SUPABASE_URL') {
-      return process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+      const val = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+      if (val && val.startsWith('https://')) return val;
     }
     if (key === 'VITE_SUPABASE_ANON_KEY') {
-      return process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+      const val = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+      if (val && val.length > 20) return val;
     }
   }
 
-  return '';
+  return key === 'VITE_SUPABASE_URL' ? DEFAULT_SUPABASE_URL : DEFAULT_SUPABASE_ANON_KEY;
 }
 
 export function getStoredCustomSupabaseConfig(): { url: string; anonKey: string } {
@@ -45,19 +51,14 @@ export function getEffectiveSupabaseConfig(): { url: string; anonKey: string; is
   if (custom.url && custom.anonKey && custom.url.startsWith('https://')) {
     return { url: custom.url, anonKey: custom.anonKey, isCustom: true };
   }
-  const envUrl = readEnv('VITE_SUPABASE_URL');
-  const envKey = readEnv('VITE_SUPABASE_ANON_KEY');
+  const envUrl = readEnv('VITE_SUPABASE_URL') || DEFAULT_SUPABASE_URL;
+  const envKey = readEnv('VITE_SUPABASE_ANON_KEY') || DEFAULT_SUPABASE_ANON_KEY;
   return { url: envUrl, anonKey: envKey, isCustom: false };
 }
 
 const initialConfig = getEffectiveSupabaseConfig();
 
-export let isSupabaseConfigured = Boolean(
-  initialConfig.url &&
-  initialConfig.anonKey &&
-  initialConfig.url.startsWith('https://') &&
-  !initialConfig.url.includes('your-project-ref')
-);
+export let isSupabaseConfigured = true;
 
 export let supabase: SupabaseClient | null = null;
 

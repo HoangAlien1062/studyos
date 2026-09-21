@@ -2,22 +2,11 @@ import React, { useEffect, useState } from 'react';
 import {
   Bell,
   Bot,
-  Check,
-  Copy,
-  Database,
-  Download,
   Laptop,
   Moon,
-  RotateCcw,
-  Save,
   Settings as SettingsIcon,
   Shield,
-  Smartphone,
-  Sparkles,
   Sun,
-  Trash2,
-  Upload,
-  Users,
 } from 'lucide-react';
 import { useStudy } from '../../context/StudyContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -28,7 +17,6 @@ import { ThemeMode } from '../../types/common';
 import { FullAppSettings } from '../../types/settings';
 import { Button } from '../../components/common/Button';
 import { Card } from '../../components/common/Card';
-import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { Select } from '../../components/common/Select';
 import { Switch } from '../../components/common/Switch';
 import { Tabs } from '../../components/common/Tabs';
@@ -36,19 +24,14 @@ import { AISettingsModal } from '../ai/AISettingsModal';
 
 export const SettingsPage: React.FC = () => {
   const { mode, setMode } = useTheme();
-  const { dataVersion, triggerDataRefresh, setIsAccountModalOpen } = useStudy();
+  const { dataVersion, triggerDataRefresh } = useStudy();
   const toast = useToast();
   const currentUser = authService.getCurrentUser();
   const isAdmin = currentUser?.role === 'admin';
 
-  const [activeTab, setActiveTab] = useState<'general' | 'appearance' | 'notifications' | 'ai' | 'data' | 'privacy'>('general');
-  const [syncCode, setSyncCode] = useState('');
-  const [inputCode, setInputCode] = useState('');
-  const [isCopied, setIsCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState<'general' | 'appearance' | 'notifications' | 'ai' | 'privacy'>('general');
   const [settings, setSettings] = useState<FullAppSettings | null>(null);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
-  const [isWipeConfirmOpen, setIsWipeConfirmOpen] = useState(false);
 
   const loadSettings = async () => {
     const s = await settingsService.getSettings();
@@ -60,14 +43,6 @@ export const SettingsPage: React.FC = () => {
   }, [dataVersion]);
 
   if (!settings) return null;
-
-  const handleWipeAllData = async () => {
-    await settingsService.wipeAllUserData();
-    setIsWipeConfirmOpen(false);
-    toast.success('Đã xóa sạch toàn bộ dữ liệu mẫu!', 'Không gian học tập của bạn đã sẵn sàng với trang trắng.');
-    triggerDataRefresh();
-    setTimeout(() => window.location.reload(), 300);
-  };
 
   // General Handlers
   const handleUpdateGeneral = async (patch: Partial<FullAppSettings['general']>) => {
@@ -92,46 +67,6 @@ export const SettingsPage: React.FC = () => {
     toast.success('Đã cập nhật cấu hình thông báo');
   };
 
-  // Data Export / Import
-  const handleExportData = () => {
-    const jsonStr = settingsService.exportBackupJson();
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `StudyOS_Backup_${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('Đã xuất bản sao lưu JSON thành công');
-  };
-
-  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const text = await file.text();
-      const success = settingsService.importBackupJson(text);
-      if (success) {
-        toast.success('Khôi phục dữ liệu từ tệp JSON thành công!');
-        triggerDataRefresh();
-        loadSettings();
-      } else {
-        toast.error('Tệp JSON không đúng định dạng sao lưu của StudyOS');
-      }
-    } catch {
-      toast.error('Lỗi khi đọc tệp JSON');
-    }
-  };
-
-  const handleResetData = async () => {
-    await settingsService.loadSampleDemoData();
-    toast.success('Đã nạp bộ dữ liệu mẫu giáo dục của StudyOS');
-    setIsResetConfirmOpen(false);
-    triggerDataRefresh();
-    window.location.reload();
-  };
-
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-150">
       {/* Settings Header */}
@@ -140,7 +75,7 @@ export const SettingsPage: React.FC = () => {
           Cài đặt hệ thống StudyOS
         </h2>
         <p className="text-xs text-slate-400 mt-0.5">
-          Tùy chỉnh trải nghiệm học tập, giao diện, nhà cung cấp AI và sao lưu dữ liệu
+          Tùy chỉnh trải nghiệm học tập, giao diện, nhà cung cấp AI và bảo mật tài khoản
         </p>
       </div>
 
@@ -153,7 +88,6 @@ export const SettingsPage: React.FC = () => {
           { id: 'appearance', label: 'Giao diện', icon: <Sun className="w-4 h-4" /> },
           { id: 'notifications', label: 'Thông báo', icon: <Bell className="w-4 h-4" /> },
           { id: 'ai', label: 'Trí tuệ AI', icon: <Bot className="w-4 h-4" /> },
-          { id: 'data', label: 'Dữ liệu & Sao lưu', icon: <Database className="w-4 h-4" /> },
           { id: 'privacy', label: 'Bảo mật', icon: <Shield className="w-4 h-4" /> },
         ]}
       />
@@ -344,209 +278,7 @@ export const SettingsPage: React.FC = () => {
         </Card>
       )}
 
-      {/* TAB 5: DATA MANAGEMENT & BACKUP */}
-      {activeTab === 'data' && (
-        <Card title="Quản lý dữ liệu, Tài khoản & Đồng bộ thiết bị" className="p-6 space-y-6">
-          {/* Quick Account & Cloud Management Banner */}
-          <div className="p-4 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs flex-shrink-0">
-                <Users className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="font-bold text-slate-900 dark:text-slate-100 block">
-                  Trung tâm Quản lý tài khoản & Cơ sở dữ liệu Cloud
-                </span>
-                <span className="text-slate-500 dark:text-slate-400 text-[11px]">
-                  Xem danh sách tài khoản trên máy, đổi tài khoản, đổi mật khẩu và kết nối Supabase Cloud để tự động đồng bộ thời gian thực.
-                </span>
-              </div>
-            </div>
-            <Button
-              size="sm"
-              variant="primary"
-              onClick={() => setIsAccountModalOpen(true)}
-              className="flex-shrink-0"
-              leftIcon={<Users className="w-3.5 h-3.5" />}
-            >
-              Mở Quản lý tài khoản & Đồng bộ
-            </Button>
-          </div>
-
-          {/* Quick 5-Second Sync Between PC and Phone */}
-          <div className="space-y-3 pt-2">
-            <div className="flex items-center gap-2">
-              <Smartphone className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                Đồng bộ nhanh không gian học sang Điện thoại (Mã đồng bộ 5 giây)
-              </h4>
-            </div>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Bạn có thể tạo mã sao lưu trên máy tính này, rồi mở StudyOS trên điện thoại dán mã vào để lập tức có đầy đủ tài khoản, môn học, tài liệu và câu hỏi.
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2 bg-slate-50/50 dark:bg-slate-900/50">
-                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
-                  1. Tạo mã từ máy tính này:
-                </span>
-                <Button
-                  size="xs"
-                  variant="outline"
-                  className="w-full justify-center"
-                  onClick={() => {
-                    const code = settingsService.createSyncCode();
-                    setSyncCode(code);
-                    toast.success('Đã tạo mã đồng bộ!');
-                  }}
-                  leftIcon={<Sparkles className="w-3.5 h-3.5" />}
-                >
-                  Tạo mã đồng bộ
-                </Button>
-                {syncCode && (
-                  <div className="space-y-1.5 pt-1">
-                    <textarea
-                      readOnly
-                      rows={2}
-                      value={syncCode}
-                      className="w-full p-2 text-[10px] font-mono bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg select-all"
-                    />
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      className="w-full justify-center"
-                      onClick={() => {
-                        navigator.clipboard.writeText(syncCode);
-                        setIsCopied(true);
-                        toast.success('Đã sao chép mã đồng bộ!');
-                        setTimeout(() => setIsCopied(false), 2500);
-                      }}
-                      leftIcon={isCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                    >
-                      {isCopied ? 'Đã sao chép!' : 'Sao chép mã'}
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2 bg-slate-50/50 dark:bg-slate-900/50">
-                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
-                  2. Nhập mã từ thiết bị khác:
-                </span>
-                <textarea
-                  rows={syncCode ? 4 : 2}
-                  placeholder="Dán mã đồng bộ vào đây..."
-                  value={inputCode}
-                  onChange={e => setInputCode(e.target.value)}
-                  className="w-full p-2 text-[10px] font-mono bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none"
-                />
-                <Button
-                  size="xs"
-                  variant="primary"
-                  className="w-full justify-center bg-emerald-600 hover:bg-emerald-700"
-                  disabled={!inputCode.trim()}
-                  onClick={() => {
-                    const ok = settingsService.applySyncCode(inputCode.trim());
-                    if (ok) {
-                      toast.success('Đồng bộ thành công! Dữ liệu đã được nạp.');
-                      triggerDataRefresh();
-                      setInputCode('');
-                      setTimeout(() => window.location.reload(), 500);
-                    } else {
-                      toast.error('Mã đồng bộ không hợp lệ');
-                    }
-                  }}
-                  leftIcon={<Download className="w-3.5 h-3.5" />}
-                >
-                  Áp dụng dữ liệu sang máy này
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
-            <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">
-              Xuất bản sao lưu dữ liệu (Export JSON)
-            </h4>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Tải toàn bộ lịch học, môn học, tài liệu, ghi chú, flashcard, câu hỏi, đề thi và cài đặt về máy tính của bạn dưới dạng tệp JSON.
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportData}
-              leftIcon={<Download className="w-4 h-4" />}
-            >
-              Tải xuống bản sao lưu (.JSON)
-            </Button>
-          </div>
-
-          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
-            <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">
-              Khôi phục dữ liệu từ tệp sao lưu (Import JSON)
-            </h4>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Nhập tệp sao lưu JSON đã tải về trước đó để đồng bộ lại dữ liệu học tập.
-            </p>
-            <div>
-              <input
-                type="file"
-                id="json-backup-input"
-                className="hidden"
-                accept=".json"
-                onChange={handleImportFile}
-              />
-              <label htmlFor="json-backup-input">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  type="button"
-                  onClick={() => document.getElementById('json-backup-input')?.click()}
-                  leftIcon={<Upload className="w-4 h-4" />}
-                >
-                  Chọn tệp JSON để khôi phục
-                </Button>
-              </label>
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
-            <h4 className="text-xs font-bold text-rose-600 dark:text-rose-400">
-              Xóa sạch toàn bộ dữ liệu (Bắt đầu với trang trắng 0 dữ liệu)
-            </h4>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Xóa toàn bộ môn học, thẻ flashcard, câu hỏi, đề thi, sổ lỗi sai, lịch học và cuộc trò chuyện AI. Không gian học tập sẽ trở về trạng thái trống hoàn toàn (0 dữ liệu) để bạn sẵn sàng nhập dữ liệu thật của bản thân.
-            </p>
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={() => setIsWipeConfirmOpen(true)}
-              leftIcon={<Trash2 className="w-4 h-4" />}
-            >
-              Xóa sạch dữ liệu (Khởi tạo trang trắng)
-            </Button>
-          </div>
-
-          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
-            <h4 className="text-xs font-bold text-amber-600 dark:text-amber-400">
-              Khôi phục dữ liệu mẫu ban đầu (Reset demo data)
-            </h4>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Xóa các thay đổi cục bộ và tải lại bộ dữ liệu giáo dục mẫu ban đầu của StudyOS.
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsResetConfirmOpen(true)}
-              leftIcon={<RotateCcw className="w-4 h-4" />}
-            >
-              Khôi phục dữ liệu mẫu
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* TAB 6: PRIVACY */}
+      {/* TAB 5: PRIVACY */}
       {activeTab === 'privacy' && (
         <Card title="Quyền riêng tư & Lưu trữ tài khoản" className="p-6 space-y-5">
           <div className="p-4 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 text-xs text-emerald-800 dark:text-emerald-300 space-y-1">
@@ -576,26 +308,6 @@ export const SettingsPage: React.FC = () => {
           toast.success('Đã lưu cài đặt AI');
           triggerDataRefresh();
         }}
-      />
-
-      {/* Wipe All Data Confirm Dialog */}
-      <ConfirmDialog
-        isOpen={isWipeConfirmOpen}
-        onClose={() => setIsWipeConfirmOpen(false)}
-        onConfirm={handleWipeAllData}
-        isDestructive
-        title="Xóa sạch toàn bộ dữ liệu (Khởi tạo trang trắng)"
-        message="Hành động này sẽ XÓA SẠCH toàn bộ môn học, flashcard, câu hỏi, đề thi, sổ lỗi sai, lịch học và cuộc trò chuyện AI hiện tại. Hệ thống sẽ chuyển sang trạng thái 0 dữ liệu để bạn tự tạo tài liệu học tập của mình. Bạn có chắc chắn muốn xóa toàn bộ?"
-      />
-
-      {/* Reset Confirm Dialog */}
-      <ConfirmDialog
-        isOpen={isResetConfirmOpen}
-        onClose={() => setIsResetConfirmOpen(false)}
-        onConfirm={handleResetData}
-        isDestructive
-        title="Khôi phục dữ liệu mẫu ban đầu"
-        message="Hành động này sẽ xóa các ghi chú, đề thi và môn học bạn đã tạo thêm và khôi phục lại dữ liệu mẫu tiếng Việt ban đầu. Bạn có chắc chắn muốn tiếp tục?"
       />
     </div>
   );

@@ -1,22 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ArrowRight,
-  Check,
-  Cloud,
-  CloudOff,
-  Copy,
-  Database,
-  Download,
   Key,
-  Laptop,
   Lock,
   LogOut,
-  RefreshCw,
-  Shield,
-  Smartphone,
-  Sparkles,
   Trash2,
-  Upload,
   User,
   UserCheck,
   UserPlus,
@@ -25,14 +12,7 @@ import {
 } from 'lucide-react';
 import { useStudy } from '../../context/StudyContext';
 import { useToast } from '../../context/ToastContext';
-import { authService, StoredAccount, UserAccount } from '../../services/authService';
-import { settingsService } from '../../services/settingsService';
-import {
-  clearCustomSupabaseConfig,
-  getEffectiveSupabaseConfig,
-  isSupabaseConfigured,
-  saveCustomSupabaseConfig,
-} from '../../lib/supabase';
+import { authService, StoredAccount } from '../../services/authService';
 import { Badge } from '../common/Badge';
 import { Button } from '../common/Button';
 import { Card } from '../common/Card';
@@ -52,7 +32,7 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
   const toast = useToast();
   const { currentUser, isAuthenticated, triggerDataRefresh, setIsAuthModalOpen, navigateTo } = useStudy();
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'accounts' | 'sync' | 'cloud'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'accounts'>('profile');
 
   // Accounts list
   const [accounts, setAccounts] = useState<StoredAccount[]>([]);
@@ -62,31 +42,13 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
 
-  // Sync Code
-  const [generatedSyncCode, setGeneratedSyncCode] = useState('');
-  const [inputSyncCode, setInputSyncCode] = useState('');
-  const [isCopied, setIsCopied] = useState(false);
-  const [syncLoading, setSyncLoading] = useState(false);
-
-  // Supabase Custom Config
-  const [supabaseUrl, setSupabaseUrl] = useState('');
-  const [supabaseAnonKey, setSupabaseAnonKey] = useState('');
-  const [isCloudConnected, setIsCloudConnected] = useState(isSupabaseConfigured);
-
   const reloadData = () => {
     setAccounts(authService.getRegisteredAccounts());
-    const cfg = getEffectiveSupabaseConfig();
-    setSupabaseUrl(cfg.url);
-    setSupabaseAnonKey(cfg.anonKey);
-    setIsCloudConnected(isSupabaseConfigured);
   };
 
   useEffect(() => {
     if (isOpen) {
       reloadData();
-      setGeneratedSyncCode('');
-      setInputSyncCode('');
-      setIsCopied(false);
     }
   }, [isOpen]);
 
@@ -108,12 +70,12 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
       return;
     }
     try {
-      await authService.removeAccount(targetId);
-      toast.success(`Đã xóa tài khoản "${name}" khỏi máy`);
+      await authService.removeAccountFromDevice(targetId);
+      toast.success(`Đã xóa tài khoản "${name}" khỏi thiết bị`);
       triggerDataRefresh();
       reloadData();
     } catch (err: any) {
-      toast.error('Lỗi khi xóa tài khoản');
+      toast.error(err.message || 'Không thể xóa tài khoản');
     }
   };
 
@@ -121,11 +83,11 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPassword || newPassword.length < 6) {
-      toast.error('Mật khẩu mới phải có ít nhất 6 ký tự.');
+      toast.error('Mật khẩu mới phải có ít nhất 6 ký tự');
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast.error('Mật khẩu xác nhận không khớp.');
+      toast.error('Mật khẩu xác nhận không khớp');
       return;
     }
 
@@ -141,80 +103,6 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
     } finally {
       setPasswordLoading(false);
     }
-  };
-
-  // Handle Generate Sync Code
-  const handleGenerateSyncCode = () => {
-    try {
-      const code = settingsService.createSyncCode();
-      setGeneratedSyncCode(code);
-      toast.success('Đã tạo mã đồng bộ không gian học tập!');
-    } catch (err) {
-      toast.error('Không thể tạo mã đồng bộ');
-    }
-  };
-
-  // Handle Copy Sync Code
-  const handleCopySyncCode = () => {
-    if (!generatedSyncCode) return;
-    navigator.clipboard.writeText(generatedSyncCode);
-    setIsCopied(true);
-    toast.success('Đã sao chép mã đồng bộ vào bộ nhớ tạm!');
-    setTimeout(() => setIsCopied(false), 3000);
-  };
-
-  // Handle Apply Sync Code (e.g. on Phone)
-  const handleApplySyncCode = () => {
-    if (!inputSyncCode.trim()) {
-      toast.error('Vui lòng dán mã đồng bộ vào ô bên dưới.');
-      return;
-    }
-    setSyncLoading(true);
-    try {
-      const ok = settingsService.applySyncCode(inputSyncCode.trim());
-      if (ok) {
-        toast.success('Đồng bộ thành công!', 'Toàn bộ tài khoản, môn học, bài tập đã được tải vào thiết bị này.');
-        triggerDataRefresh();
-        reloadData();
-        setInputSyncCode('');
-        setTimeout(() => {
-          window.location.reload();
-        }, 600);
-      } else {
-        toast.error('Mã đồng bộ không hợp lệ hoặc dữ liệu bị lỗi.');
-      }
-    } catch (err) {
-      toast.error('Lỗi khi áp dụng mã đồng bộ.');
-    } finally {
-      setSyncLoading(false);
-    }
-  };
-
-  // Handle Save Supabase Custom Config
-  const handleSaveCloudConfig = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!supabaseUrl.trim() || !supabaseAnonKey.trim()) {
-      toast.error('Vui lòng điền đủ Supabase Project URL và Anon Key.');
-      return;
-    }
-
-    const ok = saveCustomSupabaseConfig(supabaseUrl.trim(), supabaseAnonKey.trim());
-    if (ok) {
-      setIsCloudConnected(true);
-      toast.success('Đã kết nối Supabase Cloud thành công!', 'Dữ liệu sẽ tự động đồng bộ thời gian thực giữa mọi thiết bị.');
-      triggerDataRefresh();
-    } else {
-      toast.error('Kết nối Supabase thất bại. Vui lòng kiểm tra lại URL và Key.');
-    }
-  };
-
-  // Handle Disconnect Supabase
-  const handleClearCloudConfig = () => {
-    clearCustomSupabaseConfig();
-    setIsCloudConnected(isSupabaseConfigured);
-    toast.info('Đã ngắt kết nối cấu hình Supabase tùy chỉnh.');
-    triggerDataRefresh();
-    reloadData();
   };
 
   return (
@@ -241,10 +129,10 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
           </div>
           <div>
             <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-              Quản lý tài khoản & Đồng bộ thiết bị
+              Quản lý tài khoản
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Chuyển đổi tài khoản, bảo mật và đồng bộ không gian học giữa Máy tính & Điện thoại
+              Xem thông tin hồ sơ, đổi mật khẩu và chuyển đổi giữa các tài khoản
             </p>
           </div>
         </div>
@@ -275,32 +163,6 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
           >
             <Users className="w-3.5 h-3.5" />
             <span>Danh sách tài khoản ({accounts.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('sync')}
-            className={`pb-2.5 px-3 border-b-2 flex items-center gap-1.5 whitespace-nowrap transition-colors ${
-              activeTab === 'sync'
-                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
-                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
-            }`}
-          >
-            <Smartphone className="w-3.5 h-3.5" />
-            <span>Đồng bộ PC $\leftrightarrow$ Điện thoại</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('cloud')}
-            className={`pb-2.5 px-3 border-b-2 flex items-center gap-1.5 whitespace-nowrap transition-colors ${
-              activeTab === 'cloud'
-                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
-                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
-            }`}
-          >
-            <Cloud className="w-3.5 h-3.5" />
-            <span>Cơ sở dữ liệu Đám mây</span>
           </button>
         </div>
 
@@ -364,38 +226,6 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
                       </Button>
                     </div>
                   </div>
-                </div>
-
-                {/* Storage Status Card */}
-                <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2.5">
-                    {isCloudConnected ? (
-                      <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                        <Cloud className="w-4 h-4" />
-                      </div>
-                    ) : (
-                      <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-                        <Laptop className="w-4 h-4" />
-                      </div>
-                    )}
-                    <div>
-                      <p className="font-semibold text-slate-800 dark:text-slate-200">
-                        {isCloudConnected ? 'Đang lưu trữ trên Supabase Cloud' : 'Đang lưu trữ trên Bộ nhớ Cục bộ (Trình duyệt)'}
-                      </p>
-                      <p className="text-[11px] text-slate-400">
-                        {isCloudConnected
-                          ? 'Dữ liệu tự động đồng bộ thời gian thực giữa máy tính & điện thoại.'
-                          : 'Dữ liệu chỉ nằm trên máy này. Hãy dùng tab "Đồng bộ PC <-> Điện thoại" để chuyển sang máy khác.'}
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    size="xs"
-                    variant="outline"
-                    onClick={() => setActiveTab(isCloudConnected ? 'cloud' : 'sync')}
-                  >
-                    {isCloudConnected ? 'Xem cấu hình Cloud' : 'Xem cách đồng bộ'}
-                  </Button>
                 </div>
 
                 {/* Change Password Form */}
@@ -552,182 +382,9 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({
             )}
           </div>
         )}
-
-        {/* TAB 3: MULTI-DEVICE SYNC HUB */}
-        {activeTab === 'sync' && (
-          <div className="space-y-4 pt-1">
-            {/* Explanatory Banner */}
-            <div className="p-3.5 rounded-xl bg-sky-50/70 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-900/50 text-xs text-sky-900 dark:text-sky-200 leading-relaxed">
-              <span className="font-bold block mb-1">
-                💡 Tại sao đăng nhập trên điện thoại lại thấy trang trắng?
-              </span>
-              StudyOS hoạt động với cơ chế bảo vệ quyền riêng tư cá nhân: mặc định dữ liệu được lưu trên trình duyệt của máy bạn (Offline Storage). Để chuyển toàn bộ tài khoản, môn học và bài tập từ máy tính sang điện thoại, bạn dùng mã đồng bộ dưới đây trong 5 giây!
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Box 1: Export from PC */}
-              <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-xs">
-                    1
-                  </div>
-                  <div>
-                    <h5 className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                      Từ Máy tính: Tạo mã đồng bộ
-                    </h5>
-                    <p className="text-[11px] text-slate-400">
-                      Gói toàn bộ tài khoản, môn học và file thành 1 mã duy nhất
-                    </p>
-                  </div>
-                </div>
-
-                <Button
-                  size="sm"
-                  variant="primary"
-                  className="w-full justify-center text-xs"
-                  onClick={handleGenerateSyncCode}
-                  leftIcon={<Sparkles className="w-3.5 h-3.5" />}
-                >
-                  Tạo mã đồng bộ ngay
-                </Button>
-
-                {generatedSyncCode && (
-                  <div className="space-y-2 pt-1">
-                    <div className="relative">
-                      <textarea
-                        readOnly
-                        value={generatedSyncCode}
-                        rows={3}
-                        className="w-full p-2.5 text-[10px] font-mono bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none select-all"
-                      />
-                    </div>
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      className="w-full justify-center text-xs"
-                      onClick={handleCopySyncCode}
-                      leftIcon={isCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                    >
-                      {isCopied ? 'Đã sao chép vào bộ nhớ tạm!' : 'Sao chép mã đồng bộ'}
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              {/* Box 2: Import on Phone */}
-              <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs">
-                    2
-                  </div>
-                  <div>
-                    <h5 className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                      Trên Điện thoại: Nhập mã đồng bộ
-                    </h5>
-                    <p className="text-[11px] text-slate-400">
-                      Dán mã vừa tạo trên máy tính vào đây
-                    </p>
-                  </div>
-                </div>
-
-                <textarea
-                  value={inputSyncCode}
-                  onChange={e => setInputSyncCode(e.target.value)}
-                  placeholder="Dán mã đồng bộ nhận từ máy tính vào đây..."
-                  rows={generatedSyncCode ? 5 : 3}
-                  className="w-full p-2.5 text-[10px] font-mono bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                />
-
-                <Button
-                  size="sm"
-                  variant="primary"
-                  className="w-full justify-center text-xs bg-emerald-600 hover:bg-emerald-700"
-                  disabled={syncLoading || !inputSyncCode.trim()}
-                  onClick={handleApplySyncCode}
-                  leftIcon={<Download className="w-3.5 h-3.5" />}
-                >
-                  {syncLoading ? 'Đang đồng bộ...' : 'Áp dụng & Tải toàn bộ dữ liệu'}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 4: SUPABASE CLOUD DATABASE CONFIG */}
-        {activeTab === 'cloud' && (
-          <div className="space-y-4 pt-1">
-            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2.5">
-                {isCloudConnected ? (
-                  <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                    <Cloud className="w-4 h-4" />
-                  </div>
-                ) : (
-                  <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center">
-                    <CloudOff className="w-4 h-4" />
-                  </div>
-                )}
-                <div>
-                  <p className="font-semibold text-slate-800 dark:text-slate-200">
-                    Trạng thái kết nối Cloud: {isCloudConnected ? '🟢 Đã kết nối Supabase Online' : '⚪ Chưa kết nối (Chạy Offline)'}
-                  </p>
-                  <p className="text-[11px] text-slate-400">
-                    {isCloudConnected
-                      ? 'Tất cả dữ liệu được lưu trên đám mây Supabase an toàn và tự động cập nhật đa thiết bị.'
-                      : 'Kết nối tài khoản Supabase miễn phí của bạn để tự động đồng bộ tức thì mọi lúc mọi nơi.'}
-                  </p>
-                </div>
-              </div>
-
-              {isCloudConnected && (
-                <Button
-                  size="xs"
-                  variant="outline"
-                  className="text-rose-600 dark:text-rose-400"
-                  onClick={handleClearCloudConfig}
-                >
-                  Ngắt kết nối
-                </Button>
-              )}
-            </div>
-
-            <Card title="Cấu hình kết nối Supabase Cloud trực tiếp" className="p-4">
-              <form onSubmit={handleSaveCloudConfig} className="space-y-3">
-                <Input
-                  label="Supabase Project URL"
-                  value={supabaseUrl}
-                  onChange={e => setSupabaseUrl(e.target.value)}
-                  placeholder="https://xyzproject.supabase.co"
-                  required
-                />
-                <Input
-                  type="password"
-                  label="Supabase Anon Key"
-                  value={supabaseAnonKey}
-                  onChange={e => setSupabaseAnonKey(e.target.value)}
-                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  required
-                />
-
-                <div className="flex items-center justify-between pt-2">
-                  <span className="text-[11px] text-slate-400">
-                    Chưa có tài khoản? Đăng ký miễn phí tại <a href="https://supabase.com" target="_blank" rel="noreferrer" className="text-indigo-600 underline">supabase.com</a>
-                  </span>
-                  <Button
-                    type="submit"
-                    size="xs"
-                    variant="primary"
-                    leftIcon={<Database className="w-3.5 h-3.5" />}
-                  >
-                    Kiểm tra & Lưu kết nối Cloud
-                  </Button>
-                </div>
-              </form>
-            </Card>
-          </div>
-        )}
       </div>
     </Modal>
   );
 };
 export default AccountManagementModal;
+

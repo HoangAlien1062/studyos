@@ -19,12 +19,6 @@ import {
 import { useStudy } from '../../context/StudyContext';
 import { useToast } from '../../context/ToastContext';
 import { authService } from '../../services/authService';
-import {
-  isSupabaseConfigured,
-  ensureSupabaseOnline,
-  saveCustomSupabaseConfig,
-  getStoredCustomSupabaseConfig,
-} from '../../lib/supabase';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { Modal } from '../common/Modal';
@@ -90,23 +84,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  const [isCloudReady, setIsCloudReady] = useState<boolean>(isSupabaseConfigured);
-  const [showManualConfig, setShowManualConfig] = useState<boolean>(false);
-  const [manualUrl, setManualUrl] = useState<string>('');
-  const [manualKey, setManualKey] = useState<string>('');
   const [isVerificationSent, setIsVerificationSent] = useState<boolean>(false);
   const [registeredEmail, setRegisteredEmail] = useState<string>('');
-
-  useEffect(() => {
-    if (isOpen) {
-      ensureSupabaseOnline().then((ok) => {
-        setIsCloudReady(ok);
-      });
-      const stored = getStoredCustomSupabaseConfig();
-      if (stored.url) setManualUrl(stored.url);
-      if (stored.anonKey) setManualKey(stored.anonKey);
-    }
-  }, [isOpen]);
 
   // Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
@@ -294,62 +273,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             </button>
           </div>
         )}
-
-            {!isCloudReady && (
-              <div className="p-2.5 bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 rounded-xl text-xs text-amber-800 dark:text-amber-200">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 font-medium">
-                    <Database className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                    <span>Supabase Cloud chưa kết nối</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowManualConfig(!showManualConfig)}
-                    className="underline text-[11px] font-semibold text-amber-700 dark:text-amber-300 hover:text-amber-900"
-                  >
-                    {showManualConfig ? 'Đóng' : 'Nhập URL & Key'}
-                  </button>
-                </div>
-                {showManualConfig && (
-                  <div className="mt-2 pt-2 border-t border-amber-200/60 dark:border-amber-800/60 space-y-2">
-                    <input
-                      type="text"
-                      placeholder="https://xyzproject.supabase.co"
-                      value={manualUrl}
-                      onChange={(e) => setManualUrl(e.target.value)}
-                      className="w-full text-xs px-2.5 py-1.5 rounded-lg border bg-white dark:bg-slate-900 border-amber-300 dark:border-amber-700 text-slate-800 dark:text-slate-100"
-                    />
-                    <input
-                      type="password"
-                      placeholder="Supabase Anon Public Key (eyJhbGciOi...)"
-                      value={manualKey}
-                      onChange={(e) => setManualKey(e.target.value)}
-                      className="w-full text-xs px-2.5 py-1.5 rounded-lg border bg-white dark:bg-slate-900 border-amber-300 dark:border-amber-700 text-slate-800 dark:text-slate-100"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!manualUrl.trim() || !manualKey.trim()) {
-                          toast.error('Vui lòng nhập đầy đủ Supabase URL và Anon Key');
-                          return;
-                        }
-                        const ok = saveCustomSupabaseConfig(manualUrl.trim(), manualKey.trim());
-                        if (ok) {
-                          setIsCloudReady(true);
-                          setShowManualConfig(false);
-                          toast.success('Đã kết nối Supabase Cloud thành công!');
-                        } else {
-                          toast.error('URL phải có dạng https://xxxx.supabase.co. Vui lòng kiểm tra lại.');
-                        }
-                      }}
-                      className="w-full py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg text-xs transition-colors"
-                    >
-                      Lưu & Kết nối Supabase ngay
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
 
         <form onSubmit={handleSubmit} className="space-y-3">
           {mode === 'register' && (

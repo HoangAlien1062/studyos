@@ -25,20 +25,6 @@ export const aiService = {
   async getSettings(): Promise<AISettingsState> {
     const local = storage.get<AISettingsState>(AI_SETTINGS_KEY, INITIAL_AI_SETTINGS);
 
-    // Auto-upgrade legacy / deprecated model names in local storage
-    if (local?.providers?.google?.model) {
-      const gModel = local.providers.google.model;
-      if (
-        gModel === 'gemini-2.0-flash' ||
-        gModel === 'gemini-2.0-flash-exp' ||
-        gModel.startsWith('gemini-1.5') ||
-        gModel === 'gemini-pro'
-      ) {
-        local.providers.google.model = 'gemini-3.6-flash';
-        storage.set(AI_SETTINGS_KEY, local);
-      }
-    }
-
     // Fetch live status and masked keys from backend
     try {
       const res = await fetch('/api/ai/providers');
@@ -271,6 +257,211 @@ export const aiService = {
     return target;
   },
 
+  // === GEMINI DIRECT CLIENT STREAMING & KEY POOL TESTING ===
+  async testGeminiKeys(rawKeys: string, model: string = 'gemini-3.6-flash'): Promise<{
+    results: Array<{ keyMask: string; latencyMs: number; status: 'ok' | 'error'; message?: string }>;
+    sortedKeys: string;
+    fastestKey?: string;
+  }> {
+    const keys = rawKeys
+      .split(/[\n,;]+/)
+      .map(k => k.trim())
+      .filter(k => k.length > 5);
+
+    if (keys.length === 0) {
+      return { results: [], sortedKeys: '' };
+    }
+
+    const cleanModel = (model || 'gemini-3.6-flash').trim();
+
+    const testResults = await Promise.all(
+      keys.map(async (key) => {
+        const start = Date.now();
+        const keyMask = `...${key.slice(-6)}`;
+        try {
+          const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${key}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ role: 'user', parts: [{ text: 'ping' }] }],
+                generationConfig: { maxOutputTokens: 2, temperature: 0 },
+              }),
+            }
+          );
+          const latencyMs = Date.now() - start;
+          if (res.ok) {
+            return { key, keyMask, latencyMs, status: 'ok' as const };
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            return {
+              key,
+              keyMask,
+              latencyMs,
+              status: 'error' as const,
+              message: errData?.error?.message || `HTTP ${res.status}`,
+            };
+          }
+        } catch (e: any) {
+          return {
+            key,
+            keyMask,
+            latencyMs: Date.now() - start,
+            status: 'error' as const,
+            message: e?.message || 'Lỗi mạng',
+          };
+        }
+      })
+    );
+
+    const valid = testResults.filter(r => r.status === 'ok').sort((a, b) => a.latencyMs - b.latencyMs);
+    const failed = testResults.filter(r => r.status !== 'ok');
+    const sortedKeyList = [...valid.map(r => r.key), ...failed.map(r => r.key)];
+
+    return {
+      results: [...valid, ...failed].map(({ keyMask, latencyMs, status, message }) => ({ keyMask, latencyMs, status, message })),
+      sortedKeys: sortedKeyList.join('\n'),
+      fastestKey: valid[0]?.keyMask,
+    };
+  },
+
+  async streamDirectGoogle(
+    conv: AIConversation,
+    convId: string,
+    userText: string,
+    keyPool: string[],
+    model: string,
+    temperature: number,
+    maxTokens: number,
+    onTokenChunk: (delta: string) => void,
+    onMetadata?: (meta: { citations?: SourceCitation[]; providerId?: string; model?: string }) => void,
+    abortSignal?: AbortSignal
+  ): Promise<{ userMsg: AIMessage; assistantMsg: AIMessage }> {
+    const cleanModel = (model || 'gemini-3.6-flash').trim();
+    const systemPrompt = 'Bạn là trợ lý học tập AI thông minh StudyOS, hỗ trợ học sinh và sinh viên giải bài tập, tóm tắt bài học, tạo câu hỏi ôn thi và giải thích kiến thức một cách chính xác, sư phạm và dễ hiểu.';
+
+    const contents = conv.messages.map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
+
+    const body = {
+      contents,
+      systemInstruction: {
+        parts: [{ text: systemPrompt }],
+      },
+      generationConfig: {
+        temperature: temperature ?? 0.7,
+        maxOutputTokens: maxTokens ?? 2048,
+      },
+    };
+
+    let res: Response | null = null;
+    const maxAttempts = Math.min(keyPool.length, 4);
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const currentKey = keyPool[attempt % keyPool.length];
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:streamGenerateContent?alt=sse&key=${currentKey}`;
+
+      try {
+        const attemptRes = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: abortSignal,
+        });
+
+        if (!attemptRes.ok) {
+          const errText = await attemptRes.text().catch(() => '');
+          if ((attemptRes.status === 429 || attemptRes.status === 403) && attempt < maxAttempts - 1) {
+            console.warn(`[Direct Gemini] Key ...${currentKey.slice(-6)} bị giới hạn tần suất (${attemptRes.status}). Tự động đổi key...`);
+            continue;
+          }
+          throw new Error(`Google API lỗi (${attemptRes.status}): ${errText.slice(0, 120)}`);
+        }
+
+        res = attemptRes;
+        break;
+      } catch (err: any) {
+        if (attempt < maxAttempts - 1 && (err.message?.includes('429') || err.message?.includes('RESOURCE_EXHAUSTED'))) {
+          continue;
+        }
+        throw err;
+      }
+    }
+
+    if (!res || !res.body) {
+      throw new Error('Google Gemini không phản hồi nội dung stream');
+    }
+
+    if (onMetadata) {
+      onMetadata({ providerId: 'google', model: cleanModel });
+    }
+
+    let fullAiContent = '';
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data:')) continue;
+          const jsonStr = trimmed.replace(/^data:\s*/, '');
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const rawDelta = parsed.candidates?.[0]?.content?.parts
+              ?.filter((p: any) => !p.thought)
+              ?.map((p: any) => p.text)
+              ?.filter(Boolean)
+              ?.join('') || '';
+
+            if (rawDelta) {
+              let delta = rawDelta;
+              if (fullAiContent.length > 0 && delta.startsWith(fullAiContent)) {
+                delta = delta.slice(fullAiContent.length);
+              }
+              if (delta) {
+                fullAiContent += delta;
+                onTokenChunk(delta);
+              }
+            }
+          } catch {}
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    if (!fullAiContent.trim()) {
+      throw new Error('Google Gemini không phản hồi nội dung');
+    }
+
+    const assistantMsg: AIMessage = {
+      id: `msg-ai-${Date.now()}`,
+      role: 'assistant',
+      content: fullAiContent,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      routingMeta: { providerId: 'google', model: cleanModel },
+    };
+
+    conv.messages.push(assistantMsg);
+    conv.updatedAt = new Date().toISOString();
+
+    const allConvs = await this.getConversations();
+    storage.set(AI_CONVERSATIONS_KEY, allConvs);
+    return { userMsg: conv.messages[conv.messages.length - 2], assistantMsg };
+  },
+
   // === REAL CHAT STREAMING WITH BACKEND ===
   async sendMessageStream(
     convId: string,
@@ -301,8 +492,35 @@ export const aiService = {
       conv.title = userText.slice(0, 32) + (userText.length > 32 ? '...' : '');
     }
 
-    // Call Backend Streaming Endpoint
+    // 1. Ultra-fast Direct Gemini Streaming (sub-second ~300ms, bypassing Vercel cold starts)
     const settings = await this.getSettings();
+    const googleConfig = settings.providers.google;
+    const rawKeys = googleConfig?.apiKey || '';
+    const keyPool = rawKeys
+      .split(/[\n,;]+/)
+      .map(k => k.trim())
+      .filter(k => k.length > 5);
+
+    if (keyPool.length > 0 && attachedFiles.length === 0) {
+      try {
+        return await this.streamDirectGoogle(
+          conv,
+          convId,
+          userText,
+          keyPool,
+          googleConfig?.model || 'gemini-3.6-flash',
+          settings.temperature,
+          settings.maxTokens,
+          onTokenChunk,
+          onMetadata,
+          abortSignal
+        );
+      } catch (directErr) {
+        console.warn('[AI Service] Direct Gemini stream fallback to backend proxy:', directErr);
+      }
+    }
+
+    // 2. Fallback to Backend Streaming Endpoint
     const activeProvider = settings.providers[settings.primaryProvider];
     const attachedDocumentIds = attachedFiles.map(f => f.id);
 

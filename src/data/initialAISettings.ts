@@ -2,16 +2,16 @@ import { AIConversation, AISettingsState } from '../types/ai';
 
 export const INITIAL_AI_SETTINGS: AISettingsState = {
   primaryProvider: 'google',
-  fallbackProvider: 'openai',
+  fallbackProvider: 'google',
   temperature: 0.7,
   maxTokens: 4096,
   providers: {
     auto: {
       id: 'auto',
-      name: 'Tự động chọn (Auto Routing)',
+      name: 'Tự động chọn (Google Gemini)',
       isEnabled: true,
       apiKey: '',
-      model: 'smart-route-v1',
+      model: 'gemini-3.8-flash',
       status: 'connected',
       lastPingMs: 45
     },
@@ -20,7 +20,7 @@ export const INITIAL_AI_SETTINGS: AISettingsState = {
       name: 'Google Gemini',
       isEnabled: true,
       apiKey: '',
-      model: 'gemini-3.6-flash',
+      model: 'gemini-3.8-flash',
       baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
       status: 'connected',
       lastPingMs: 78

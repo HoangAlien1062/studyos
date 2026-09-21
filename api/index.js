@@ -1078,17 +1078,24 @@ var GoogleAdapter = class extends AbstractBaseProvider {
     toolCalling: true,
     systemPromptSupport: true
   };
+  currentKeyIndex = 0;
   constructor(config) {
-    if (config.model === "gemini-2.0-flash" || config.model === "gemini-2.0-flash-exp" || config.model?.startsWith("gemini-1.5")) {
-      config.model = "gemini-3.6-flash";
-    }
     super(config);
+  }
+  getKeyPool() {
+    const raw = this.config.apiKey || "";
+    const parts = raw.split(/[\n,;]+/).map((k) => k.trim()).filter((k) => k.length > 5);
+    return parts.length > 0 ? parts : raw.trim() ? [raw.trim()] : [];
+  }
+  getNextApiKey() {
+    const pool = this.getKeyPool();
+    if (pool.length === 0) return "";
+    const key = pool[this.currentKeyIndex % pool.length];
+    this.currentKeyIndex = (this.currentKeyIndex + 1) % pool.length;
+    return key;
   }
   normalizeModel(rawModel) {
     const model = (rawModel || this.config.model || "gemini-3.6-flash").trim();
-    if (model === "gemini-2.0-flash" || model === "gemini-2.0-flash-exp" || model.startsWith("gemini-1.5") || model === "gemini-pro") {
-      return "gemini-3.6-flash";
-    }
     return model;
   }
   getBaseUrl() {
@@ -1113,15 +1120,14 @@ var GoogleAdapter = class extends AbstractBaseProvider {
     return { systemInstruction, contents };
   }
   async chat(messages, options) {
-    if (!this.config.apiKey?.trim()) {
+    const pool = this.getKeyPool();
+    if (pool.length === 0) {
       const err = new Error(`[${this.name}] Ch\u01B0a c\u1EA5u h\xECnh API Key. Vui l\xF2ng b\u1EA5m v\xE0o bi\u1EC3u t\u01B0\u1EE3ng B\xE1nh r\u0103ng (\u2699\uFE0F C\xE0i \u0111\u1EB7t AI) \u0111\u1EC3 nh\u1EADp API Key cho ${this.name}.`);
       err.isConfigError = true;
       err.statusCode = 401;
       throw err;
     }
-    const startTime = Date.now();
     const model = this.normalizeModel(options?.model);
-    const url = `${this.getBaseUrl()}/models/${model}:generateContent?key=${this.config.apiKey}`;
     const { systemInstruction, contents } = this.prepareContents(messages);
     const body = {
       contents,
@@ -1135,38 +1141,59 @@ var GoogleAdapter = class extends AbstractBaseProvider {
         parts: [{ text: systemInstruction }]
       };
     }
-    const res = await this.fetchWithTimeout(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: options?.signal
-    });
-    if (!res.ok) {
-      let errBody;
+    let lastError = null;
+    const maxAttempts = Math.min(pool.length, 3);
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const activeKey = this.getNextApiKey();
+      const startTime = Date.now();
+      const url = `${this.getBaseUrl()}/models/${model}:generateContent?key=${activeKey}`;
       try {
-        errBody = await res.json();
-      } catch {
+        const res = await this.fetchWithTimeout(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: options?.signal
+        });
+        if (!res.ok) {
+          let errBody;
+          try {
+            errBody = await res.json();
+          } catch {
+          }
+          const errorObj = this.handleError(res.status, res.statusText, errBody);
+          if ((res.status === 429 || res.status === 403) && attempt < maxAttempts - 1) {
+            console.warn(`[Google Gemini] Key ...${activeKey.slice(-6)} b\u1ECB gi\u1EDBi h\u1EA1n t\u1EA7n su\u1EA5t (${res.status}). T\u1EF1 \u0111\u1ED9ng \u0111\u1ED5i sang key ti\u1EBFp theo trong pool...`);
+            continue;
+          }
+          throw errorObj;
+        }
+        const data = await res.json();
+        const text = data.candidates?.[0]?.content?.parts?.filter((p) => !p.thought)?.map((p) => p.text)?.join("") || "";
+        const latencyMs = Date.now() - startTime;
+        return {
+          content: text,
+          usage: data.usageMetadata ? {
+            promptTokens: data.usageMetadata.promptTokenCount || 0,
+            completionTokens: data.usageMetadata.candidatesTokenCount || 0,
+            totalTokens: data.usageMetadata.totalTokenCount || 0
+          } : void 0,
+          providerId: this.id,
+          model,
+          latencyMs
+        };
+      } catch (err) {
+        lastError = err;
+        if (attempt < maxAttempts - 1 && (err.status === 429 || err.statusCode === 429 || err.message?.includes("429"))) {
+          continue;
+        }
+        throw err;
       }
-      throw this.handleError(res.status, res.statusText, errBody);
     }
-    const data = await res.json();
-    const latencyMs = Date.now() - startTime;
-    const candidate = data.candidates?.[0];
-    const text = candidate?.content?.parts?.filter((p) => !p.thought)?.map((p) => p.text)?.filter(Boolean)?.join("") || "";
-    return {
-      content: text,
-      usage: data.usageMetadata ? {
-        promptTokens: data.usageMetadata.promptTokenCount,
-        completionTokens: data.usageMetadata.candidatesTokenCount,
-        totalTokens: data.usageMetadata.totalTokenCount
-      } : void 0,
-      providerId: this.id,
-      model,
-      latencyMs
-    };
+    throw lastError;
   }
   async chatStream(messages, options, onChunk) {
-    if (!this.config.apiKey?.trim()) {
+    const pool = this.getKeyPool();
+    if (pool.length === 0) {
       const err = new Error(`[${this.name}] Ch\u01B0a c\u1EA5u h\xECnh API Key. Vui l\xF2ng b\u1EA5m v\xE0o bi\u1EC3u t\u01B0\u1EE3ng B\xE1nh r\u0103ng (\u2699\uFE0F C\xE0i \u0111\u1EB7t AI) \u0111\u1EC3 nh\u1EADp API Key cho ${this.name}.`);
       err.isConfigError = true;
       err.statusCode = 401;
@@ -1174,7 +1201,6 @@ var GoogleAdapter = class extends AbstractBaseProvider {
     }
     const startTime = Date.now();
     const model = this.normalizeModel(options?.model);
-    const url = `${this.getBaseUrl()}/models/${model}:streamGenerateContent?alt=sse&key=${this.config.apiKey}`;
     const { systemInstruction, contents } = this.prepareContents(messages);
     const body = {
       contents,
@@ -1188,21 +1214,43 @@ var GoogleAdapter = class extends AbstractBaseProvider {
         parts: [{ text: systemInstruction }]
       };
     }
-    const res = await this.fetchWithTimeout(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: options?.signal
-    });
-    if (!res.ok) {
-      let errBody;
+    let res = null;
+    let activeKey = "";
+    const maxAttempts = Math.min(pool.length, 3);
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      activeKey = this.getNextApiKey();
+      const url = `${this.getBaseUrl()}/models/${model}:streamGenerateContent?alt=sse&key=${activeKey}`;
       try {
-        errBody = await res.json();
-      } catch {
+        const attemptRes = await this.fetchWithTimeout(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: options?.signal
+        });
+        if (!attemptRes.ok) {
+          let errBody;
+          try {
+            errBody = await attemptRes.json();
+          } catch {
+          }
+          if ((attemptRes.status === 429 || attemptRes.status === 403) && attempt < maxAttempts - 1) {
+            console.warn(`[Google Gemini Stream] Key ...${activeKey.slice(-6)} b\u1ECB gi\u1EDBi h\u1EA1n t\u1EA7n su\u1EA5t (${attemptRes.status}). T\u1EF1 \u0111\u1ED9ng \u0111\u1ED5i key...`);
+            continue;
+          }
+          throw this.handleError(attemptRes.status, attemptRes.statusText, errBody);
+        }
+        res = attemptRes;
+        break;
+      } catch (err) {
+        if (attempt < maxAttempts - 1 && (err.status === 429 || err.statusCode === 429 || err.message?.includes("429"))) {
+          continue;
+        }
+        throw err;
       }
-      throw this.handleError(res.status, res.statusText, errBody);
     }
-    if (!res.body) throw new Error(`[${this.name}] Ph\u1EA3n h\u1ED3i stream t\u1EEB Google kh\xF4ng c\xF3 body.`);
+    if (!res || !res.body) {
+      throw new Error(`[${this.name}] Ph\u1EA3n h\u1ED3i stream t\u1EEB Google kh\xF4ng c\xF3 body.`);
+    }
     let fullContent = "";
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -1280,10 +1328,11 @@ var GoogleAdapter = class extends AbstractBaseProvider {
         { maxTokens: 2, temperature: 0, model }
       );
       const latencyMs = Date.now() - startTime;
+      const pool = this.getKeyPool();
       return {
         success: true,
         latencyMs,
-        message: `K\u1EBFt n\u1ED1i th\xE0nh c\xF4ng t\u1EDBi Google Gemini (${model}) - \u0110\u1ED9 tr\u1EC5: ${latencyMs}ms`
+        message: `K\u1EBFt n\u1ED1i th\xE0nh c\xF4ng t\u1EDBi Google Gemini (${model}) - \u0110\u1ED9 tr\u1EC5: ${latencyMs}ms (${pool.length} API Key${pool.length > 1 ? "s" : ""} s\u1EB5n s\xE0ng)`
       };
     } catch (err) {
       return {
@@ -1709,11 +1758,6 @@ var AIRouter = class {
     return this.providers.get(id);
   }
   updateProviderConfig(id, partial) {
-    if (id === "google" && partial.model) {
-      if (partial.model === "gemini-2.0-flash" || partial.model === "gemini-2.0-flash-exp" || partial.model.startsWith("gemini-1.5") || partial.model === "gemini-pro") {
-        partial.model = "gemini-3.6-flash";
-      }
-    }
     const p = this.providers.get(id);
     if (p && typeof p.updateConfig === "function") {
       p.updateConfig(partial);

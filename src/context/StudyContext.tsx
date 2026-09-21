@@ -37,11 +37,41 @@ interface StudyContextType {
   triggerDataRefresh: () => void;
 }
 
+const VALID_TABS: NavigationTab[] = [
+  'dashboard', 'schedule', 'subjects', 'documents', 'notes',
+  'flashcards', 'questions', 'mistakes', 'exams', 'analytics',
+  'ai', 'settings', 'profile', 'admin'
+];
+
+function getInitialTab(): { tab: NavigationTab; targetId?: string } {
+  try {
+    const hash = window.location.hash.replace(/^#\/?/, '').trim();
+    if (hash) {
+      const [tabPart, queryPart] = hash.split('?');
+      if (VALID_TABS.includes(tabPart as NavigationTab)) {
+        let targetId: string | undefined;
+        if (queryPart) {
+          const params = new URLSearchParams(queryPart);
+          targetId = params.get('id') || undefined;
+        }
+        return { tab: tabPart as NavigationTab, targetId };
+      }
+    }
+    const saved = localStorage.getItem('studyos_active_tab') as NavigationTab;
+    const savedId = localStorage.getItem('studyos_target_id') || undefined;
+    if (saved && VALID_TABS.includes(saved)) {
+      return { tab: saved, targetId: savedId };
+    }
+  } catch {}
+  return { tab: 'dashboard' };
+}
+
 const StudyContext = createContext<StudyContextType | undefined>(undefined);
 
 export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [activeTab, setActiveTab] = useState<NavigationTab>('dashboard');
-  const [selectedTargetId, setSelectedTargetId] = useState<string | undefined>(undefined);
+  const initialNav = getInitialTab();
+  const [activeTab, setActiveTab] = useState<NavigationTab>(initialNav.tab);
+  const [selectedTargetId, setSelectedTargetId] = useState<string | undefined>(initialNav.targetId);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
   const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(() => !authService.isAuthenticated());
@@ -59,7 +89,29 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const navigateTo = (tab: NavigationTab, targetId?: string) => {
     setActiveTab(tab);
     setSelectedTargetId(targetId);
+    try {
+      const hashStr = `#${tab}${targetId ? `?id=${targetId}` : ''}`;
+      if (window.location.hash !== hashStr) {
+        window.history.replaceState(null, '', hashStr);
+      }
+      localStorage.setItem('studyos_active_tab', tab);
+      if (targetId) {
+        localStorage.setItem('studyos_target_id', targetId);
+      } else {
+        localStorage.removeItem('studyos_target_id');
+      }
+    } catch {}
   };
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const nav = getInitialTab();
+      setActiveTab(nav.tab);
+      setSelectedTargetId(nav.targetId);
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   const refreshUnreadNotifs = async () => {
     const count = await notificationService.getUnreadCount();

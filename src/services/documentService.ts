@@ -218,6 +218,10 @@ export const documentService = {
     subjectId?: string,
     tags: string[] = []
   ): Promise<DocumentItem> {
+    if (file.size > 15 * 1024 * 1024) {
+      throw new Error(`Tệp tin quá lớn (${(file.size / (1024 * 1024)).toFixed(1)} MB). Vui lòng chọn tệp nhỏ hơn 15 MB.`);
+    }
+
     const fileName = file.name;
     const ext = fileName.split('.').pop()?.toLowerCase() || '';
 
@@ -229,53 +233,48 @@ export const documentService = {
     else if (ext === 'png') type = 'png';
     else if (ext === 'jpg' || ext === 'jpeg') type = 'jpg';
 
-    let content = `Tệp tin: ${fileName} (${(file.size / 1024).toFixed(1)} KB)`;
+    let content = '';
     if (['txt', 'md', 'json', 'csv'].includes(ext)) {
       try {
         content = await file.text();
+        if (content.length > 100000) {
+          content = content.slice(0, 100000) + '\n\n...[Đã rút gọn để tối ưu hiệu năng]';
+        }
       } catch {
         // Fallback
       }
     }
 
-    // 1. Try uploading to backend /api/storage/upload (Google Drive / Storage Server)
-    try {
-      const token = await authService.getBearerToken();
-      if (token) {
-        const base64Data = await fileToBase64(file);
-        const res = await fetch('/api/storage/upload', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            name: fileName,
-            mimeType: file.type || 'application/octet-stream',
-            contentBase64: base64Data,
-            subjectId,
-            parentFolderId,
-          }),
-        });
-
-        if (res.ok) {
-          const json = await res.json();
-          if (json.file) {
-            content = `Đã lưu trữ an toàn trên Google Drive hệ thống (ID: ${json.file.driveFileId || json.file.id})\n\n` + content;
-          }
+    // 1. For files <= 3.5MB, try uploading to backend /api/storage/upload (Google Drive)
+    if (file.size <= 3.5 * 1024 * 1024) {
+      try {
+        const token = await authService.getBearerToken();
+        if (token) {
+          const base64Data = await fileToBase64(file);
+          await fetch('/api/storage/upload', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              name: fileName,
+              mimeType: file.type || 'application/octet-stream',
+              contentBase64: base64Data,
+              subjectId,
+              parentFolderId,
+            }),
+          });
         }
+      } catch (e) {
+        console.warn('[Storage] Backend upload attempt bypassed:', e);
       }
-    } catch (e) {
-      console.warn('[Storage] Backend upload attempt bypassed:', e);
     }
 
-    // 2. Fallback to Supabase Storage if configured
+    // 2. Stream directly to Supabase Storage if configured (binary multipart upload)
     if (supabase && isSupabaseConfigured) {
       try {
-        const storageResult = await uploadToSupabaseStorage(file, 'user-docs');
-        if (storageResult) {
-          content = `Đã lưu trên Supabase Storage Online: ${storageResult.url}\n\n` + content;
-        }
+        await uploadToSupabaseStorage(file, 'user-docs');
       } catch (e) {
         console.warn('[Supabase Storage] Fallback upload error:', e);
       }

@@ -75,17 +75,6 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 </Button>
               </div>
             </div>
-
-            {document.content && (
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 text-xs">
-                <span className="font-semibold text-slate-500 block mb-1">
-                  Trích xuất văn bản / Tóm tắt nội dung:
-                </span>
-                <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
-                  {document.content}
-                </p>
-              </div>
-            )}
           </div>
         );
     }

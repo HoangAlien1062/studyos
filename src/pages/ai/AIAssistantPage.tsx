@@ -554,11 +554,9 @@ export const AIAssistantPage: React.FC = () => {
                 <Badge variant="primary" size="sm">
                   Chế độ: {(activeConversation?.mode || 'general').toUpperCase()}
                 </Badge>
-                {aiSettings && (
-                  <span className="text-[10px] text-slate-400">
-                    Routing: {aiSettings.primaryProvider.toUpperCase()}
-                  </span>
-                )}
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                  ⚡ Google Gemini ({aiSettings?.providers?.google?.model || 'gemini-3.8-flash'})
+                </span>
               </div>
             </div>
           </div>

@@ -98,16 +98,6 @@ export class AIRouter {
   }
 
   public updateProviderConfig(id: AIProviderId, partial: Partial<ProviderConfig>): void {
-    if (id === 'google' && partial.model) {
-      if (
-        partial.model === 'gemini-2.0-flash' ||
-        partial.model === 'gemini-2.0-flash-exp' ||
-        partial.model.startsWith('gemini-1.5') ||
-        partial.model === 'gemini-pro'
-      ) {
-        partial.model = 'gemini-3.6-flash';
-      }
-    }
     const p = this.providers.get(id) as any;
     if (p && typeof p.updateConfig === 'function') {
       p.updateConfig(partial);

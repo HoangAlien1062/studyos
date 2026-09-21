@@ -14,6 +14,8 @@ import {
   HelpCircle,
   Layers,
   LayoutDashboard,
+  Lock,
+  LogIn,
   Settings,
   Shield,
   User,
@@ -57,11 +59,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onMobileClose })
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
 
   const handleNavClick = (tab: NavigationTab) => {
+    if (!isAuthenticated && tab !== 'dashboard' && tab !== 'settings') {
+      setIsAuthModalOpen(true);
+      if (isMobileOpen) onMobileClose();
+      return;
+    }
     navigateTo(tab);
     if (isMobileOpen) {
       onMobileClose();
     }
   };
+
+  // KHI CHƯA ĐĂNG NHẬP: ẨN TOÀN BỘ các mục học tập cá nhân (Lịch học, Môn học, Tài liệu, Ghi chú, Flashcards, Câu hỏi, Sổ lỗi sai, Đề thi, Thống kê, AI, Hồ sơ)
+  // Chỉ hiển thị đầy đủ khi đã đăng nhập tài khoản Supabase
+  const visibleNavItems = isAuthenticated
+    ? [
+        ...NAV_ITEMS,
+        ...(currentUser?.role === 'admin' || currentUser?.email === 'student@studyos.edu.vn' || currentUser?.email === 'phamnguyenhoang10@gmail.com'
+          ? [{ id: 'admin' as NavigationTab, label: '🛡️ Quản trị Admin', icon: Shield }]
+          : []),
+      ]
+    : NAV_ITEMS.filter(item => item.id === 'dashboard' || item.id === 'settings');
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-200 select-none">
@@ -108,12 +126,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onMobileClose })
 
       {/* Navigation Links */}
       <div className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
-        {[
-          ...NAV_ITEMS,
-          ...(currentUser?.role === 'admin' || currentUser?.email === 'student@studyos.edu.vn' || currentUser?.email === 'phamnguyenhoang10@gmail.com'
-            ? [{ id: 'admin' as NavigationTab, label: '🛡️ Quản trị Admin', icon: Shield }]
-            : []),
-        ].map(item => {
+        {visibleNavItems.map(item => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
 
@@ -155,6 +168,40 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onMobileClose })
 
           return <div key={item.id}>{linkButton}</div>;
         })}
+
+        {/* Unauthenticated Lock Banner & CTA in Sidebar */}
+        {!isAuthenticated && (
+          <div className="pt-2 px-1">
+            <button
+              type="button"
+              onClick={() => {
+                setIsAuthModalOpen(true);
+                if (isMobileOpen) onMobileClose();
+              }}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all group ${
+                isCollapsed ? 'justify-center !px-0' : ''
+              }`}
+              title="Đăng nhập để mở khóa"
+            >
+              <LogIn className="w-4 h-4 flex-shrink-0" />
+              {!isCollapsed && (
+                <span className="truncate flex-1 text-left">Đăng nhập tài khoản</span>
+              )}
+            </button>
+
+            {!isCollapsed && (
+              <div className="mt-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-200">
+                  <Lock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span>Dữ liệu học tập đang ẩn</span>
+                </div>
+                <p className="text-[10px] leading-relaxed">
+                  Đăng nhập để hiển thị Môn học, Tài liệu, Flashcards, Đề thi và Trợ lý AI theo tài khoản của bạn.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Footer Mini Profile */}

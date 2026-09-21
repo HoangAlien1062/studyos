@@ -11,6 +11,7 @@ import {
   FileText,
   HelpCircle,
   Layers,
+  LogIn,
   Sparkles,
   TrendingUp,
 } from 'lucide-react';
@@ -40,7 +41,7 @@ import { LoadingSkeleton } from '../../components/common/LoadingSkeleton';
 type WidgetState = 'normal' | 'loading' | 'empty' | 'error';
 
 export const DashboardPage: React.FC = () => {
-  const { navigateTo, dataVersion, triggerDataRefresh } = useStudy();
+  const { navigateTo, dataVersion, triggerDataRefresh, isAuthenticated, setIsAuthModalOpen } = useStudy();
   const toast = useToast();
 
   const [widgetState, setWidgetState] = useState<WidgetState>('normal');
@@ -104,6 +105,72 @@ export const DashboardPage: React.FC = () => {
 
   // Đề thi sắp tới
   const upcomingExams = widgetState === 'empty' ? [] : exams.slice(0, 2);
+
+  if (!isAuthenticated) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-150">
+        {/* Welcome Hero Banner */}
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 text-white p-8 sm:p-10 shadow-lg">
+          <div className="relative z-10 max-w-2xl space-y-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 text-indigo-100 text-xs font-semibold backdrop-blur-sm">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Nền tảng Học tập Thông minh StudyOS</span>
+            </div>
+            <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight leading-tight">
+              Không gian học tập cá nhân hóa & Đồng bộ Supabase Cloud
+            </h1>
+            <p className="text-xs sm:text-sm text-indigo-100 leading-relaxed max-w-xl">
+              Đăng nhập tài khoản của bạn để quản lý thời khóa biểu, tài liệu môn học, luyện đề thi trắc nghiệm, ôn tập thẻ flashcard Spaced Repetition và tương tác với Trợ lý AI.
+            </p>
+            <div className="pt-2 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsAuthModalOpen(true)}
+                className="px-6 py-3 rounded-xl bg-white text-indigo-700 hover:bg-indigo-50 font-bold text-xs shadow-md transition-all flex items-center gap-2"
+              >
+                <LogIn className="w-4 h-4" />
+                Đăng nhập / Đăng ký ngay
+              </button>
+            </div>
+          </div>
+          <div className="absolute -right-10 -bottom-10 w-80 h-80 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+        </div>
+
+        {/* Feature Preview Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="p-6 space-y-3 border border-slate-200 dark:border-slate-800">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+              <BookOpen className="w-5 h-5" />
+            </div>
+            <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Quản lý Môn học & Tài liệu</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Tổ chức môn học theo Chương, Chủ đề và đính kèm giáo trình, bài giảng PDF/Word với lưu trữ đám mây an toàn.
+            </p>
+          </Card>
+
+          <Card className="p-6 space-y-3 border border-slate-200 dark:border-slate-800">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <Layers className="w-5 h-5" />
+            </div>
+            <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Flashcards & Luyện Đề Thi</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Thuật toán lặp lại ngắt quãng SM-2 giúp ghi nhớ kiến thức dài hạn, kèm ngân hàng câu hỏi và sổ lỗi sai thông minh.
+            </p>
+          </Card>
+
+          <Card className="p-6 space-y-3 border border-slate-200 dark:border-slate-800">
+            <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Trợ lý Trí tuệ Nhân tạo AI</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Hỏi đáp theo ngữ cảnh tài liệu (RAG), giải bài tập tự động, tạo bộ thẻ flashcard và tóm tắt cốt lõi bài học.
+            </p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150">

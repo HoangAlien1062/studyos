@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { ensureUUID, isValidUUID } from '../lib/uuid';
 import { NoteItem } from '../types/note';
 import { authService } from './authService';
 import { storage } from './storage';
@@ -13,10 +14,14 @@ export const noteService = {
 
     if (supabase && isSupabaseConfigured) {
       try {
-        const { data, error } = await supabase
-          .from('notes')
-          .select('*')
-          .order('updated_at', { ascending: false });
+        const { data: authData } = await supabase.auth.getUser();
+        const current = authService.getCurrentUser();
+        const rawUserId = authData?.user?.id || current?.id;
+        let query = supabase.from('notes').select('*');
+        if (rawUserId && isValidUUID(rawUserId)) {
+          query = query.eq('user_id', rawUserId);
+        }
+        const { data, error } = await query.order('updated_at', { ascending: false });
 
         if (!error && data) {
           const mapped: NoteItem[] = data.map(n => ({
@@ -48,32 +53,32 @@ export const noteService = {
   async saveNote(note: Omit<NoteItem, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<NoteItem> {
     const list = await this.getAllNotes();
     const now = new Date().toISOString();
+    const noteId = ensureUUID(note.id);
     let saved: NoteItem;
 
-    if (note.id) {
-      const idx = list.findIndex(n => n.id === note.id);
-      if (idx !== -1) {
-        saved = { ...list[idx], ...note, updatedAt: now };
-        list[idx] = saved;
-      } else {
-        saved = { ...note, id: `note-${Date.now()}`, createdAt: now, updatedAt: now };
-        list.unshift(saved);
-      }
+    const idx = list.findIndex(n => n.id === note.id || n.id === noteId);
+    if (idx !== -1) {
+      saved = { ...list[idx], ...note, id: noteId, updatedAt: now };
+      list[idx] = saved;
     } else {
-      saved = { ...note, id: `note-${Date.now()}`, createdAt: now, updatedAt: now };
+      saved = { ...note, id: noteId, createdAt: now, updatedAt: now };
       list.unshift(saved);
     }
 
     if (supabase && isSupabaseConfigured) {
       try {
         const { data: authData } = await supabase.auth.getUser();
-        const userId = authData?.user?.id;
+        const current = authService.getCurrentUser();
+        const rawUserId = authData?.user?.id || current?.id;
+        const userId = (rawUserId && isValidUUID(rawUserId)) ? rawUserId : null;
+        const subjectId = (saved.subjectId && isValidUUID(saved.subjectId)) ? saved.subjectId : null;
+
         await supabase.from('notes').upsert({
           id: saved.id,
           user_id: userId,
           title: saved.title,
           content_markdown: saved.content,
-          subject_id: saved.subjectId || null,
+          subject_id: subjectId,
           is_pinned: saved.isPinned,
           is_favorite: saved.isFavorite,
           tags: saved.tags,
@@ -91,7 +96,7 @@ export const noteService = {
     const list = await this.getAllNotes();
     storage.set(NOTES_KEY, list.filter(n => n.id !== id));
 
-    if (supabase && isSupabaseConfigured) {
+    if (supabase && isSupabaseConfigured && isValidUUID(id)) {
       try {
         await supabase.from('notes').delete().eq('id', id);
       } catch (err) {

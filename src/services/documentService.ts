@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured, uploadToSupabaseStorage } from '../lib/supabase';
+import { ensureUUID, isValidUUID } from '../lib/uuid';
 import { DocumentFileType, DocumentItem } from '../types/document';
 import { authService } from './authService';
 import { storage } from './storage';
@@ -22,10 +23,15 @@ export const documentService = {
 
     if (supabase && isSupabaseConfigured) {
       try {
-        const { data, error } = await supabase
-          .from('documents')
-          .select('*')
-          .order('created_at', { ascending: false });
+        const { data: authData } = await supabase.auth.getUser();
+        const current = authService.getCurrentUser();
+        const activeUserId = authData?.user?.id || current?.id;
+
+        let query = supabase.from('documents').select('*');
+        if (activeUserId && isValidUUID(activeUserId)) {
+          query = query.eq('user_id', activeUserId);
+        }
+        const { data, error } = await query.order('created_at', { ascending: false });
 
         if (!error && data) {
           const mapped: DocumentItem[] = data.map(d => ({
@@ -43,6 +49,8 @@ export const documentService = {
           }));
           storage.set(DOCUMENTS_KEY, mapped);
           return mapped;
+        } else if (error) {
+          console.warn('[Supabase Online] Error fetching documents:', error);
         }
       } catch (err) {
         console.warn('[Supabase Online] Error fetching documents:', err);
@@ -64,38 +72,48 @@ export const documentService = {
   async saveDocument(doc: Omit<DocumentItem, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<DocumentItem> {
     const list = await this.getAllDocuments();
     const now = new Date().toISOString();
+    const docId = ensureUUID(doc.id);
     let saved: DocumentItem;
 
-    if (doc.id) {
-      const idx = list.findIndex(d => d.id === doc.id);
-      if (idx !== -1) {
-        saved = { ...list[idx], ...doc, updatedAt: now };
-        list[idx] = saved;
-      } else {
-        saved = { ...doc, id: `doc-${Date.now()}`, createdAt: now, updatedAt: now };
-        list.push(saved);
-      }
+    const idx = list.findIndex(d => d.id === doc.id || d.id === docId);
+    if (idx !== -1) {
+      saved = { ...list[idx], ...doc, id: docId, updatedAt: now };
+      list[idx] = saved;
     } else {
-      saved = { ...doc, id: `doc-${Date.now()}`, createdAt: now, updatedAt: now };
+      saved = { ...doc, id: docId, createdAt: now, updatedAt: now };
       list.push(saved);
     }
 
     if (supabase && isSupabaseConfigured) {
       try {
         const { data: authData } = await supabase.auth.getUser();
-        const userId = authData?.user?.id;
-        await supabase.from('documents').upsert({
+        const current = authService.getCurrentUser();
+        const rawUserId = authData?.user?.id || current?.id;
+        const userId = (rawUserId && isValidUUID(rawUserId)) ? rawUserId : null;
+
+        const parentFolderId = (saved.parentFolderId && isValidUUID(saved.parentFolderId))
+          ? saved.parentFolderId
+          : null;
+        const subjectId = (saved.subjectId && isValidUUID(saved.subjectId))
+          ? saved.subjectId
+          : null;
+
+        const { error } = await supabase.from('documents').upsert({
           id: saved.id,
           user_id: userId,
           name: saved.name,
           type: saved.type,
-          parent_folder_id: saved.parentFolderId || null,
-          subject_id: saved.subjectId || null,
+          parent_folder_id: parentFolderId,
+          subject_id: subjectId,
           size_bytes: saved.size || 0,
           is_favorite: saved.isFavorite || false,
           content_preview: saved.content || null,
           tags: saved.tags || [],
         });
+
+        if (error) {
+          console.error('[Supabase Online] Error upserting document:', error);
+        }
       } catch (err) {
         console.warn('[Supabase Online] Error saving document:', err);
       }
@@ -125,7 +143,7 @@ export const documentService = {
     }
     storage.set(DOCUMENTS_KEY, list);
 
-    if (supabase && isSupabaseConfigured) {
+    if (supabase && isSupabaseConfigured && isValidUUID(id)) {
       try {
         await supabase.from('documents').delete().eq('id', id);
       } catch (err) {
@@ -144,7 +162,7 @@ export const documentService = {
     target.updatedAt = new Date().toISOString();
     storage.set(DOCUMENTS_KEY, list);
 
-    if (supabase && isSupabaseConfigured) {
+    if (supabase && isSupabaseConfigured && isValidUUID(id)) {
       try {
         await supabase.from('documents').update({ is_favorite: target.isFavorite }).eq('id', id);
       } catch (err) {
@@ -163,7 +181,7 @@ export const documentService = {
     target.updatedAt = new Date().toISOString();
     storage.set(DOCUMENTS_KEY, list);
 
-    if (supabase && isSupabaseConfigured) {
+    if (supabase && isSupabaseConfigured && isValidUUID(id)) {
       try {
         await supabase.from('documents').update({ name: newName }).eq('id', id);
       } catch (err) {
@@ -182,9 +200,10 @@ export const documentService = {
     target.updatedAt = new Date().toISOString();
     storage.set(DOCUMENTS_KEY, list);
 
-    if (supabase && isSupabaseConfigured) {
+    if (supabase && isSupabaseConfigured && isValidUUID(id)) {
       try {
-        await supabase.from('documents').update({ parent_folder_id: targetFolderId }).eq('id', id);
+        const parentId = (targetFolderId && isValidUUID(targetFolderId)) ? targetFolderId : null;
+        await supabase.from('documents').update({ parent_folder_id: parentId }).eq('id', id);
       } catch (err) {
         console.warn('[Supabase Online] Error moving document:', err);
       }

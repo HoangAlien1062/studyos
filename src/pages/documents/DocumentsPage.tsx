@@ -142,46 +142,67 @@ export const DocumentsPage: React.FC = () => {
   const handleCreateFolder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFolderName.trim()) return;
-    await documentService.createFolder(newFolderName.trim(), currentFolderId);
-    toast.success('Đã tạo thư mục mới', newFolderName);
-    setNewFolderName('');
-    setIsNewFolderOpen(false);
-    triggerDataRefresh();
+    try {
+      await documentService.createFolder(newFolderName.trim(), currentFolderId);
+      toast.success('Đã tạo thư mục mới', newFolderName);
+      setNewFolderName('');
+      setIsNewFolderOpen(false);
+      await loadData();
+      triggerDataRefresh();
+    } catch (err: any) {
+      toast.error('Không thể tạo thư mục: ' + (err?.message || 'Lỗi không xác định'));
+    }
   };
 
   const handleRename = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!itemToRename || !renameValue.trim()) return;
-    await documentService.renameDocument(itemToRename.id, renameValue.trim());
-    toast.success('Đã đổi tên thành công', renameValue);
-    setItemToRename(null);
-    triggerDataRefresh();
+    try {
+      await documentService.renameDocument(itemToRename.id, renameValue.trim());
+      toast.success('Đã đổi tên thành công', renameValue);
+      setItemToRename(null);
+      await loadData();
+      triggerDataRefresh();
+    } catch (err: any) {
+      toast.error('Không thể đổi tên: ' + (err?.message || 'Lỗi'));
+    }
   };
 
   const handleMove = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!itemToMove) return;
-    const dest = targetMoveFolderId === 'root' ? null : targetMoveFolderId;
-    await documentService.moveDocument(itemToMove.id, dest);
-    toast.success('Đã di chuyển tệp thành công');
-    setItemToMove(null);
-    triggerDataRefresh();
+    try {
+      const dest = targetMoveFolderId === 'root' ? null : targetMoveFolderId;
+      await documentService.moveDocument(itemToMove.id, dest);
+      toast.success('Đã di chuyển tệp thành công');
+      setItemToMove(null);
+      await loadData();
+      triggerDataRefresh();
+    } catch (err: any) {
+      toast.error('Không thể di chuyển: ' + (err?.message || 'Lỗi'));
+    }
   };
 
   const handleToggleFavorite = async (id: string) => {
     const res = await documentService.toggleFavorite(id);
     if (res) {
       toast.success(res.isFavorite ? 'Đã thêm vào mục yêu thích' : 'Đã bỏ khỏi mục yêu thích');
+      await loadData();
       triggerDataRefresh();
     }
   };
 
   const handleDeleteConfirm = async () => {
     if (!itemToDelete) return;
-    await documentService.deleteDocument(itemToDelete.id);
-    toast.success('Đã xóa thành công', itemToDelete.name);
-    setItemToDelete(null);
-    triggerDataRefresh();
+    try {
+      await documentService.deleteDocument(itemToDelete.id);
+      toast.success('Đã xóa thành công', itemToDelete.name);
+      setItemToDelete(null);
+      await loadData();
+      triggerDataRefresh();
+    } catch (err: any) {
+      toast.error('Không thể xóa: ' + (err?.message || 'Lỗi'));
+    }
   };
 
   const getFileIcon = (type: DocumentFileType) => {

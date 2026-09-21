@@ -161,15 +161,21 @@ export const AdminDashboardPage: React.FC = () => {
           'x-mock-role': 'admin',
         },
       });
-      const data = await res.json();
-      if (data.success) {
-        toast.success(data.message || 'Kết nối Google Drive thành công!');
-        fetchAdminData();
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          toast.success(data.message || 'Kết nối Google Drive thành công!');
+          fetchAdminData();
+        } else {
+          toast.warning(data.message || 'Chưa thể kết nối tới Google Drive');
+        }
       } else {
-        toast.warning(data.message || 'Chưa thể kết nối tới Google Drive');
+        const errData = await res.json().catch(() => ({}));
+        toast.warning(errData.message || errData.error || `Chưa thể kết nối Google Drive (Mã lỗi ${res.status}). Vui lòng kiểm tra biến môi trường Vercel.`);
       }
     } catch (e: any) {
-      toast.error('Lỗi khi kiểm tra kết nối Google Drive');
+      toast.error('Lỗi khi kiểm tra kết nối Google Drive: ' + (e?.message || 'Không thể kết nối'));
     } finally {
       setTestingStorage(false);
     }

@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { ensureUUID, isValidUUID } from '../lib/uuid';
 import { Chapter, Subject, Topic } from '../types/subject';
 import { authService } from './authService';
 import { storage } from './storage';
@@ -16,10 +17,14 @@ export const subjectService = {
 
     if (supabase && isSupabaseConfigured) {
       try {
-        const { data, error } = await supabase
-          .from('subjects')
-          .select('*')
-          .order('created_at', { ascending: false });
+        const { data: authData } = await supabase.auth.getUser();
+        const current = authService.getCurrentUser();
+        const rawUserId = authData?.user?.id || current?.id;
+        let query = supabase.from('subjects').select('*');
+        if (rawUserId && isValidUUID(rawUserId)) {
+          query = query.eq('user_id', rawUserId);
+        }
+        const { data, error } = await query.order('created_at', { ascending: false });
 
         if (!error && data) {
           const mapped: Subject[] = data.map(s => ({
@@ -28,10 +33,10 @@ export const subjectService = {
             code: s.code,
             icon: s.icon || 'BookOpen',
             description: s.description || '',
-            teacher: s.teacher || '',
-            creditCount: s.credit_count || 3,
+            creditCount: s.credit_count,
+            teacher: s.teacher || undefined,
             color: s.color,
-            progress: s.progress || 0,
+            progress: s.progress,
             createdAt: s.created_at,
           }));
           storage.set(SUBJECTS_KEY, mapped);
@@ -51,27 +56,26 @@ export const subjectService = {
 
   async saveSubject(subject: Omit<Subject, 'id' | 'createdAt'> & { id?: string }): Promise<Subject> {
     const list = await this.getSubjects();
+    const subjId = ensureUUID(subject.id);
     let saved: Subject;
     const now = new Date().toISOString();
 
-    if (subject.id) {
-      const idx = list.findIndex(s => s.id === subject.id);
-      if (idx !== -1) {
-        saved = { ...list[idx], ...subject };
-        list[idx] = saved;
-      } else {
-        saved = { ...subject, id: `subj-${Date.now()}`, createdAt: now };
-        list.push(saved);
-      }
+    const idx = list.findIndex(s => s.id === subject.id || s.id === subjId);
+    if (idx !== -1) {
+      saved = { ...list[idx], ...subject, id: subjId };
+      list[idx] = saved;
     } else {
-      saved = { ...subject, id: `subj-${Date.now()}`, createdAt: now };
+      saved = { ...subject, id: subjId, createdAt: now };
       list.push(saved);
     }
 
     if (supabase && isSupabaseConfigured) {
       try {
         const { data: authData } = await supabase.auth.getUser();
-        const userId = authData?.user?.id;
+        const current = authService.getCurrentUser();
+        const rawUserId = authData?.user?.id || current?.id;
+        const userId = (rawUserId && isValidUUID(rawUserId)) ? rawUserId : null;
+
         await supabase.from('subjects').upsert({
           id: saved.id,
           user_id: userId,
@@ -139,31 +143,30 @@ export const subjectService = {
 
   async saveChapter(chapter: Omit<Chapter, 'id' | 'createdAt'> & { id?: string }): Promise<Chapter> {
     const all = storage.get<Chapter[]>(CHAPTERS_KEY, []);
+    const chapId = ensureUUID(chapter.id);
     let saved: Chapter;
     const now = new Date().toISOString();
 
-    if (chapter.id) {
-      const idx = all.findIndex(c => c.id === chapter.id);
-      if (idx !== -1) {
-        saved = { ...all[idx], ...chapter };
-        all[idx] = saved;
-      } else {
-        saved = { ...chapter, id: `chap-${Date.now()}`, createdAt: now };
-        all.push(saved);
-      }
+    const idx = all.findIndex(c => c.id === chapter.id || c.id === chapId);
+    if (idx !== -1) {
+      saved = { ...all[idx], ...chapter, id: chapId };
+      all[idx] = saved;
     } else {
-      saved = { ...chapter, id: `chap-${Date.now()}`, createdAt: now };
+      saved = { ...chapter, id: chapId, createdAt: now };
       all.push(saved);
     }
 
     if (supabase && isSupabaseConfigured) {
       try {
         const { data: authData } = await supabase.auth.getUser();
-        const userId = authData?.user?.id;
+        const current = authService.getCurrentUser();
+        const rawUserId = authData?.user?.id || current?.id;
+        const userId = (rawUserId && isValidUUID(rawUserId)) ? rawUserId : null;
+
         await supabase.from('chapters').upsert({
           id: saved.id,
           user_id: userId,
-          subject_id: saved.subjectId,
+          subject_id: ensureUUID(saved.subjectId),
           title: saved.title,
           description: saved.description,
           order_index: saved.orderIndex,
@@ -184,7 +187,7 @@ export const subjectService = {
     const topics = await this.getTopics();
     storage.set(TOPICS_KEY, topics.filter(t => t.chapterId !== id));
 
-    if (supabase && isSupabaseConfigured) {
+    if (supabase && isSupabaseConfigured && isValidUUID(id)) {
       try {
         await supabase.from('chapters').delete().eq('id', id);
       } catch (err) {
@@ -200,7 +203,7 @@ export const subjectService = {
     if (supabase && isSupabaseConfigured) {
       try {
         let query = supabase.from('topics').select('*').order('order_index', { ascending: true });
-        if (chapterId) query = query.eq('chapter_id', chapterId);
+        if (chapterId && isValidUUID(chapterId)) query = query.eq('chapter_id', chapterId);
         const { data, error } = await query;
         if (!error && data) {
           return data.map(t => ({
@@ -225,32 +228,31 @@ export const subjectService = {
 
   async saveTopic(topic: Omit<Topic, 'id' | 'createdAt'> & { id?: string }): Promise<Topic> {
     const all = storage.get<Topic[]>(TOPICS_KEY, []);
+    const topicId = ensureUUID(topic.id);
     let saved: Topic;
     const now = new Date().toISOString();
 
-    if (topic.id) {
-      const idx = all.findIndex(t => t.id === topic.id);
-      if (idx !== -1) {
-        saved = { ...all[idx], ...topic };
-        all[idx] = saved;
-      } else {
-        saved = { ...topic, id: `topic-${Date.now()}`, createdAt: now };
-        all.push(saved);
-      }
+    const idx = all.findIndex(t => t.id === topic.id || t.id === topicId);
+    if (idx !== -1) {
+      saved = { ...all[idx], ...topic, id: topicId };
+      all[idx] = saved;
     } else {
-      saved = { ...topic, id: `topic-${Date.now()}`, createdAt: now };
+      saved = { ...topic, id: topicId, createdAt: now };
       all.push(saved);
     }
 
     if (supabase && isSupabaseConfigured) {
       try {
         const { data: authData } = await supabase.auth.getUser();
-        const userId = authData?.user?.id;
+        const current = authService.getCurrentUser();
+        const rawUserId = authData?.user?.id || current?.id;
+        const userId = (rawUserId && isValidUUID(rawUserId)) ? rawUserId : null;
+
         await supabase.from('topics').upsert({
           id: saved.id,
           user_id: userId,
-          chapter_id: saved.chapterId,
-          subject_id: saved.subjectId,
+          chapter_id: ensureUUID(saved.chapterId),
+          subject_id: ensureUUID(saved.subjectId),
           title: saved.title,
           description: saved.description,
           order_index: saved.orderIndex,

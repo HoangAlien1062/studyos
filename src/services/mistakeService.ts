@@ -9,6 +9,10 @@ const MISTAKES_KEY = 'mistakes';
 
 export const mistakeService = {
   async getMistakes(filters?: MistakeFilterCriteria): Promise<MistakeItem[]> {
+    if (!authService.isAuthenticated()) {
+      return [];
+    }
+
     if (supabase && isSupabaseConfigured) {
       try {
         let query = supabase.from('mistakes').select('*').order('created_at', { ascending: false });

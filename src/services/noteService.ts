@@ -1,11 +1,16 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { NoteItem } from '../types/note';
+import { authService } from './authService';
 import { storage } from './storage';
 
 const NOTES_KEY = 'notes';
 
 export const noteService = {
   async getAllNotes(): Promise<NoteItem[]> {
+    if (!authService.isAuthenticated()) {
+      return [];
+    }
+
     if (supabase && isSupabaseConfigured) {
       try {
         const { data, error } = await supabase

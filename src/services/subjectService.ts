@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { Chapter, Subject, Topic } from '../types/subject';
+import { authService } from './authService';
 import { storage } from './storage';
 
 const SUBJECTS_KEY = 'subjects';
@@ -9,6 +10,10 @@ const TOPICS_KEY = 'topics';
 export const subjectService = {
   // === SUBJECTS ===
   async getSubjects(): Promise<Subject[]> {
+    if (!authService.isAuthenticated()) {
+      return [];
+    }
+
     if (supabase && isSupabaseConfigured) {
       try {
         const { data, error } = await supabase

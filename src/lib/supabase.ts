@@ -122,15 +122,30 @@ if (!isSupabaseConfigured && typeof window !== 'undefined') {
 }
 
 export function saveCustomSupabaseConfig(url: string, anonKey: string): boolean {
+  let cleanUrl = url.trim();
+  let cleanKey = anonKey.trim();
+
+  // Smart detection: If user accidentally swapped URL and Key
+  if ((cleanUrl.startsWith('sb_') || cleanUrl.startsWith('ey')) && cleanKey.startsWith('https://')) {
+    const temp = cleanUrl;
+    cleanUrl = cleanKey;
+    cleanKey = temp;
+  }
+
+  if (!cleanUrl.startsWith('https://')) {
+    console.warn('[Supabase Config] Project URL must start with https://');
+    return false;
+  }
+
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem(CUSTOM_URL_KEY, url.trim());
-      window.localStorage.setItem(CUSTOM_KEY_KEY, anonKey.trim());
+      window.localStorage.setItem(CUSTOM_URL_KEY, cleanUrl);
+      window.localStorage.setItem(CUSTOM_KEY_KEY, cleanKey);
     }
   } catch (err) {
     console.error('Failed to save custom supabase config:', err);
   }
-  return initSupabase(url.trim(), anonKey.trim());
+  return initSupabase(cleanUrl, cleanKey);
 }
 
 export function clearCustomSupabaseConfig(): boolean {
@@ -142,8 +157,8 @@ export function clearCustomSupabaseConfig(): boolean {
   } catch (err) {
     console.error('Failed to clear custom supabase config:', err);
   }
-  const envUrl = getEnvVar('VITE_SUPABASE_URL');
-  const envKey = getEnvVar('VITE_SUPABASE_ANON_KEY');
+  const envUrl = readEnv('VITE_SUPABASE_URL');
+  const envKey = readEnv('VITE_SUPABASE_ANON_KEY');
   return initSupabase(envUrl, envKey);
 }
 

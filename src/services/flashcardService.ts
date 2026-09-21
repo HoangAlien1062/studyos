@@ -11,6 +11,9 @@ const CARDS_KEY = 'flashcard_cards';
 export const flashcardService = {
   // === DECKS ===
   async getDecks(): Promise<FlashcardDeck[]> {
+    if (!authService.isAuthenticated()) {
+      return [];
+    }
     const allCards = await this.getCards();
 
     if (supabase && isSupabaseConfigured) {
@@ -145,6 +148,9 @@ export const flashcardService = {
 
   // === CARDS ===
   async getCards(deckId?: string): Promise<Flashcard[]> {
+    if (!authService.isAuthenticated()) {
+      return [];
+    }
     if (supabase && isSupabaseConfigured) {
       try {
         let query = supabase.from('flashcards').select('*').order('created_at', { ascending: true });

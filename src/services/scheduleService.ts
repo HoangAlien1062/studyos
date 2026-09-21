@@ -1,12 +1,17 @@
 import { INITIAL_SCHEDULES, getRelativeDate } from '../data/initialSchedules';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { ParsedScheduleItem, ScheduleEvent } from '../types/schedule';
+import { authService } from './authService';
 import { storage } from './storage';
 
 const SCHEDULES_KEY = 'schedules';
 
 export const scheduleService = {
   async getSchedules(): Promise<ScheduleEvent[]> {
+    if (!authService.isAuthenticated()) {
+      return [];
+    }
+
     if (supabase && isSupabaseConfigured) {
       try {
         const { data, error } = await supabase

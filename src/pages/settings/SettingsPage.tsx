@@ -23,6 +23,7 @@ import { useStudy } from '../../context/StudyContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import { settingsService } from '../../services/settingsService';
+import { authService } from '../../services/authService';
 import { ThemeMode } from '../../types/common';
 import { FullAppSettings } from '../../types/settings';
 import { Button } from '../../components/common/Button';
@@ -37,6 +38,8 @@ export const SettingsPage: React.FC = () => {
   const { mode, setMode } = useTheme();
   const { dataVersion, triggerDataRefresh, setIsAccountModalOpen } = useStudy();
   const toast = useToast();
+  const currentUser = authService.getCurrentUser();
+  const isAdmin = currentUser?.role === 'admin';
 
   const [activeTab, setActiveTab] = useState<'general' | 'appearance' | 'notifications' | 'ai' | 'data' | 'privacy'>('general');
   const [syncCode, setSyncCode] = useState('');
@@ -206,17 +209,7 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Select
-              label="Ngôn ngữ hiển thị"
-              value={settings.general.language}
-              onChange={e => handleUpdateGeneral({ language: e.target.value as any })}
-              options={[
-                { value: 'vi', label: '🇻🇳 Tiếng Việt (Mặc định)' },
-                { value: 'en', label: '🇺🇸 English' },
-              ]}
-            />
-
+          <div className="max-w-xs">
             <Select
               label="Định dạng thời gian"
               value={settings.general.timeFormat}
@@ -248,7 +241,7 @@ export const SettingsPage: React.FC = () => {
 
       {/* TAB 2: APPEARANCE */}
       {activeTab === 'appearance' && (
-        <Card title="Tuỳ biến giao diện & Màu sắc" className="space-y-6 p-6">
+        <Card title="Giao diện hiển thị (Theme sáng / tối)" className="space-y-6 p-6">
           <div className="space-y-3">
             <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
               Chế độ màu hiển thị (Theme mode)
@@ -271,33 +264,6 @@ export const SettingsPage: React.FC = () => {
                   {t.icon}
                   <span className="text-xs">{t.label}</span>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-              Màu sắc chủ đạo (Accent Color)
-            </label>
-            <div className="flex flex-wrap gap-3">
-              {[
-                { color: '#4f46e5', label: 'Indigo' },
-                { color: '#0284c7', label: 'Sky' },
-                { color: '#059669', label: 'Emerald' },
-                { color: '#d97706', label: 'Amber' },
-                { color: '#7c3aed', label: 'Violet' },
-                { color: '#db2777', label: 'Rose' },
-              ].map(c => (
-                <button
-                  key={c.color}
-                  type="button"
-                  onClick={() => handleUpdateAppearance({ accentColor: c.color })}
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center transition-transform hover:scale-105 ${
-                    settings.appearance.accentColor === c.color ? 'ring-2 ring-offset-2 ring-slate-900 dark:ring-white scale-105' : ''
-                  }`}
-                  style={{ backgroundColor: c.color }}
-                  title={c.label}
-                />
               ))}
             </div>
           </div>
@@ -339,11 +305,7 @@ export const SettingsPage: React.FC = () => {
 
       {/* TAB 4: AI SETTINGS SHORTCUT */}
       {activeTab === 'ai' && (
-        <Card title="Cấu hình Trợ lý AI & Mô hình LLM" className="p-6 space-y-4">
-          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            StudyOS hỗ trợ tích hợp linh hoạt với nhiều nhà cung cấp mô hình trí tuệ nhân tạo hàng đầu như Google Gemini, OpenAI GPT-4o, Anthropic Claude và OpenRouter. Bạn có thể nhập API Key riêng để sử dụng không giới hạn.
-          </p>
-
+        <Card title="Cấu hình Trí tuệ AI & Mô hình LLM" className="p-6 space-y-4">
           <div className="p-4 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
             <div>
               <span className="font-bold text-slate-900 dark:text-slate-100 block">
@@ -354,15 +316,31 @@ export const SettingsPage: React.FC = () => {
               </span>
             </div>
 
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setIsAiModalOpen(true)}
-              leftIcon={<Bot className="w-4 h-4" />}
-            >
-              Mở cấu hình AI & API Keys
-            </Button>
+            {isAdmin ? (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setIsAiModalOpen(true)}
+                leftIcon={<Bot className="w-4 h-4" />}
+              >
+                Mở cấu hình AI & API Keys (Admin)
+              </Button>
+            ) : (
+              <div className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800/50">
+                ✓ AI hệ thống hoạt động sẵn sàng
+              </div>
+            )}
           </div>
+
+          {!isAdmin ? (
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              💡 <strong>Lưu ý:</strong> Nền tảng StudyOS đã cấu hình sẵn mô hình AI cho toàn bộ học viên. Bạn có thể sử dụng trực tiếp các tính năng Trợ lý AI, giải bài tập, tạo thẻ ghi nhớ mà không cần tự nhập API key. Chỉ tài khoản Quản trị viên (Admin) mới có quyền chỉnh sửa hoặc thay đổi API Key hệ thống.
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Với tư cách Quản trị viên, bạn có thể thiết lập API Key chung (Gemini, GPT-4o, Claude, OpenRouter) để toàn bộ học viên trong hệ thống cùng sử dụng.
+            </p>
+          )}
         </Card>
       )}
 
@@ -570,16 +548,13 @@ export const SettingsPage: React.FC = () => {
 
       {/* TAB 6: PRIVACY */}
       {activeTab === 'privacy' && (
-        <Card title="Quyền riêng tư & Lưu trữ cục bộ" className="p-6 space-y-5">
-          <Switch
-            label="Cho phép lưu trữ dữ liệu ngoại tuyến (Offline Local Caching)"
-            description="Toàn bộ lịch học, ghi chú và bài tập của bạn được lưu an toàn trong trình duyệt (LocalStorage/IndexedDB) và hoạt động ngay cả khi mất mạng."
-            checked={settings.privacy.allowLocalCaching}
-            onChange={val => {
-              settingsService.updatePrivacy({ allowLocalCaching: val });
-              toast.success('Đã cập nhật tùy chọn lưu trữ');
-            }}
-          />
+        <Card title="Quyền riêng tư & Lưu trữ tài khoản" className="p-6 space-y-5">
+          <div className="p-4 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50 text-xs text-emerald-800 dark:text-emerald-300 space-y-1">
+            <span className="font-bold block">☁️ Đồng bộ đám mây Supabase Cloud</span>
+            <p className="text-[11px] leading-relaxed opacity-90">
+              Toàn bộ môn học, tài liệu, đề thi và câu hỏi của bạn được lưu trữ an toàn trên máy chủ đám mây Supabase theo tài khoản cá nhân. Không lưu cache ngoại tuyến dùng chung giúp bảo vệ thông tin khi đăng xuất hoặc sử dụng trên thiết bị công cộng.
+            </p>
+          </div>
 
           <Switch
             label="Thu thập thống kê học tập ẩn danh"

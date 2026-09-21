@@ -15,10 +15,11 @@ export const questionService = {
     topicId?: string;
     difficulty?: QuestionDifficulty;
     type?: QuestionType;
-    tag?: string;
-    search?: string;
-    source?: string;
   }): Promise<QuestionItem[]> {
+    if (!authService.isAuthenticated()) {
+      return [];
+    }
+
     if (supabase && isSupabaseConfigured) {
       try {
         let query = supabase.from('questions').select('*').order('created_at', { ascending: false });

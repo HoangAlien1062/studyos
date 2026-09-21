@@ -48,8 +48,8 @@ export async function handleServerRequest(req: IncomingMessage, res: ServerRespo
     res.setHeader('Cache-Control', 'no-store, max-age=0');
     res.end(
       JSON.stringify({
-        supabaseUrl: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '',
-        supabaseAnonKey: process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '',
+        supabaseUrl: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://mwxlqlalmpbclzbmqmvm.supabase.co',
+        supabaseAnonKey: process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im13eGxxbGFsbXBiY2x6Ym1xbXZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk5MDQ5NjgsImV4cCI6MjEwNTQ4MDk2OH0.QouXlyV4kezKb9r7BE0q_FByttj4ury-75d5OunxZVU',
       })
     );
     return true;

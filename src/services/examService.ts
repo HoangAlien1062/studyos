@@ -15,6 +15,10 @@ const DRAFT_PREFIX = 'exam_draft_';
 
 export const examService = {
   async getExams(): Promise<ExamSession[]> {
+    if (!authService.isAuthenticated()) {
+      return [];
+    }
+
     if (supabase && isSupabaseConfigured) {
       try {
         const { data: examsData, error } = await supabase

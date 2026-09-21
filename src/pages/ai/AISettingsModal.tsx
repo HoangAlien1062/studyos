@@ -8,6 +8,7 @@ import { Input } from '../../components/common/Input';
 import { Modal } from '../../components/common/Modal';
 import { Select } from '../../components/common/Select';
 import { Switch } from '../../components/common/Switch';
+import { authService } from '../../services/authService';
 
 interface AISettingsModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ export const AISettingsModal: React.FC<AISettingsModalProps> = ({
   onClose,
   onSettingsSaved,
 }) => {
+  const isAdmin = authService.getCurrentUser()?.role === 'admin';
   const [settings, setSettings] = useState<AISettingsState | null>(null);
   const [testingProvider, setTestingProvider] = useState<AIProvider | null>(null);
   const [testResult, setTestResult] = useState<{ message: string; success: boolean } | null>(null);
@@ -64,6 +66,7 @@ export const AISettingsModal: React.FC<AISettingsModalProps> = ({
   };
 
   const handleApiKeyChange = (providerId: AIProvider, apiKey: string) => {
+    if (!isAdmin) return;
     setSettings(prev => {
       if (!prev) return null;
       return {
@@ -124,7 +127,7 @@ export const AISettingsModal: React.FC<AISettingsModalProps> = ({
   };
 
   const handleSaveAll = async () => {
-    if (!settings) return;
+    if (!settings || !isAdmin) return;
     await aiService.saveSettings(settings);
     if (onSettingsSaved) onSettingsSaved();
     onClose();
@@ -145,11 +148,17 @@ export const AISettingsModal: React.FC<AISettingsModalProps> = ({
       footer={
         <div className="w-full flex items-center justify-between">
           <Button variant="outline" size="sm" onClick={onClose}>
-            Hủy
+            {isAdmin ? 'Hủy' : 'Đóng'}
           </Button>
-          <Button variant="primary" size="sm" onClick={handleSaveAll}>
-            Lưu tất cả cấu hình
-          </Button>
+          {isAdmin ? (
+            <Button variant="primary" size="sm" onClick={handleSaveAll}>
+              Lưu tất cả cấu hình
+            </Button>
+          ) : (
+            <span className="text-xs text-slate-500 dark:text-slate-400 italic">
+              🔒 Chế độ xem: Chỉ Quản trị viên mới có quyền cập nhật API Key
+            </span>
+          )}
         </div>
       }
     >
@@ -299,14 +308,15 @@ export const AISettingsModal: React.FC<AISettingsModalProps> = ({
                           <div>
                             <Input
                               type="password"
-                              label="API Key (Mã hóa an toàn tại server)"
-                              placeholder={provider.maskedApiKey || 'Nhập API Key...'}
-                              value={provider.apiKey}
+                              label="API Key (Chỉ Quản trị viên cấu hình)"
+                              placeholder={isAdmin ? (provider.maskedApiKey || 'Nhập API Key...') : 'Đã được quản trị viên cấu hình'}
+                              value={isAdmin ? provider.apiKey : ''}
                               onChange={e => handleApiKeyChange(provider.id, e.target.value)}
+                              disabled={!isAdmin}
                             />
                             {provider.maskedApiKey && (
                               <p className="text-[10px] text-slate-400 mt-1">
-                                Khóa hiện tại: <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">{provider.maskedApiKey}</code>
+                                Khóa hiện tại: <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">{isAdmin ? provider.maskedApiKey : '••••••••••••••••'}</code>
                               </p>
                             )}
                           </div>

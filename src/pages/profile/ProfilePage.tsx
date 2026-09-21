@@ -11,6 +11,7 @@ import {
   GraduationCap,
   Image as ImageIcon,
   Link as LinkIcon,
+  LogIn,
   Mail,
   RotateCcw,
   Save,
@@ -120,7 +121,7 @@ function resizeImage(file: File, maxWidth = 256, maxHeight = 256): Promise<strin
 
 export const ProfilePage: React.FC = () => {
   const toast = useToast();
-  const { triggerDataRefresh, setIsAccountModalOpen } = useStudy();
+  const { triggerDataRefresh, setIsAccountModalOpen, setIsAuthModalOpen } = useStudy();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
@@ -221,6 +222,36 @@ export const ProfilePage: React.FC = () => {
       setUploadLoading(false);
     }
   };
+
+  const isAuth = authService.isAuthenticated();
+
+  if (!isAuth) {
+    return (
+      <div className="max-w-2xl mx-auto py-16 px-4 text-center space-y-6 animate-in fade-in duration-150">
+        <div className="w-20 h-20 rounded-3xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center mx-auto text-indigo-600 dark:text-indigo-400 shadow-sm">
+          <User className="w-10 h-10" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
+            Hồ sơ cá nhân & Tiến độ học tập
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+            Bạn chưa đăng nhập vào StudyOS. Vui lòng đăng nhập bằng tài khoản của bạn để xem thông tin sinh viên, chỉnh sửa hồ sơ và theo dõi số liệu học tập.
+          </p>
+        </div>
+        <div className="flex justify-center gap-3">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setIsAuthModalOpen(true)}
+            leftIcon={<LogIn className="w-4 h-4" />}
+          >
+            Đăng nhập / Đăng ký tài khoản
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (!profile) return null;
 

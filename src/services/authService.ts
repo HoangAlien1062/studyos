@@ -24,6 +24,7 @@ export interface StoredAccount extends UserAccount {
 export interface AuthResponse {
   token: string;
   user: UserAccount;
+  requiresEmailVerification?: boolean;
 }
 
 const DEMO_USER: UserAccount = {
@@ -95,6 +96,7 @@ export const authService = {
         email: cleanEmail,
         password: data.password,
         options: {
+          emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
           data: {
             name: data.name.trim(),
             school: data.school || defaultSchool,
@@ -105,14 +107,28 @@ export const authService = {
         },
       });
 
-      if (error) throw new Error(error.message);
+      if (error) {
+        if (
+          error.message.toLowerCase().includes('already registered') ||
+          error.message.toLowerCase().includes('already exists') ||
+          error.message.toLowerCase().includes('user already exists')
+        ) {
+          throw new Error('Email này đã được đăng ký tài khoản. Mỗi địa chỉ Gmail chỉ được tạo duy nhất một tài khoản. Vui lòng chuyển sang màn hình Đăng nhập.');
+        }
+        throw new Error(error.message);
+      }
+
+      // Check duplicate in Supabase where identities is empty
+      if (authData.user && authData.user.identities && authData.user.identities.length === 0) {
+        throw new Error('Email này đã được đăng ký tài khoản. Mỗi địa chỉ Gmail chỉ được tạo duy nhất một tài khoản. Vui lòng chuyển sang màn hình Đăng nhập.');
+      }
 
       const userId = authData.user?.id || `user-${Date.now()}`;
       const newUser: UserAccount = {
         id: userId,
         email: cleanEmail,
         name: data.name.trim(),
-        role: 'user',
+        role: resolveRole(cleanEmail),
         educationLevel,
         gradeOrYear,
         school: data.school || defaultSchool,
@@ -122,51 +138,43 @@ export const authService = {
         avatarUrl: data.avatarUrl || '',
       };
 
-      // Ensure profile exists in public.users
-      try {
-        await supabase.from('users').upsert({
-          id: userId,
-          email: cleanEmail,
-          name: newUser.name,
-          role: 'user',
-          education_level: educationLevel,
-          grade_or_year: gradeOrYear,
-          school: newUser.school,
-          major: newUser.major,
-          student_id: data.studentId || '',
-          bio: data.bio || '',
-          avatar_url: newUser.avatarUrl || '',
-        });
-      } catch (e) {
-        console.warn('[Supabase] Error saving user profile:', e);
+      // If user session is returned immediately (email confirmation disabled in Supabase)
+      if (authData.session) {
+        try {
+          await supabase.from('users').upsert({
+            id: userId,
+            email: cleanEmail,
+            name: newUser.name,
+            role: newUser.role || 'user',
+            education_level: educationLevel,
+            grade_or_year: gradeOrYear,
+            school: newUser.school,
+            major: newUser.major,
+            student_id: data.studentId || '',
+            bio: data.bio || '',
+            avatar_url: newUser.avatarUrl || '',
+          });
+        } catch (e) {
+          console.warn('[Supabase] Error saving user profile:', e);
+        }
+
+        storage.set(USER_STORAGE_KEY, newUser);
+        return {
+          token: authData.session.access_token,
+          user: newUser,
+          requiresEmailVerification: false,
+        };
       }
 
-      this.saveToRegistry(newUser, data.password);
-      storage.set(USER_STORAGE_KEY, newUser);
+      // If email verification is required (authData.session is null)
       return {
-        token: authData.session?.access_token || 'supabase-session',
+        token: '',
         user: newUser,
+        requiresEmailVerification: true,
       };
     }
 
-    // Local mode fallback
-    const localUser: UserAccount = {
-      id: `user-${Date.now()}`,
-      email: cleanEmail,
-      name: data.name.trim(),
-      role: 'user',
-      educationLevel,
-      gradeOrYear,
-      school: data.school?.trim() || defaultSchool,
-      major: data.major?.trim() || defaultMajor,
-      studentId: data.studentId?.trim() || '',
-      bio: data.bio?.trim() || '',
-      avatarUrl: data.avatarUrl || '',
-    };
-
-    this.saveToRegistry(localUser, data.password);
-    storage.set(USER_STORAGE_KEY, localUser);
-    return { token: 'demo-token', user: localUser };
+    throw new Error('Chưa kết nối Supabase Cloud. Vui lòng kiểm tra biến môi trường hoặc kết nối để đăng ký.');
   },
 
   /**
@@ -186,7 +194,16 @@ export const authService = {
         password,
       });
 
-      if (error) throw new Error(error.message);
+      if (error) {
+        const msg = error.message.toLowerCase();
+        if (msg.includes('email not confirmed')) {
+          throw new Error('Tài khoản chưa được kích hoạt qua email. Vui lòng mở hộp thư Gmail của bạn (kiểm tra cả mục Thư rác/Spam) và nhấn vào liên kết xác nhận để kích hoạt tài khoản.');
+        }
+        if (msg.includes('invalid login credentials')) {
+          throw new Error('Email hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.');
+        }
+        throw new Error(error.message);
+      }
 
       // Fetch user profile from public.users
       const { data: profile } = await supabase
@@ -210,7 +227,6 @@ export const authService = {
         avatarUrl: profile?.avatar_url || data.user.user_metadata?.avatar_url || data.user.user_metadata?.picture || '',
       };
 
-      this.saveToRegistry(user, password);
       storage.set(USER_STORAGE_KEY, user);
       return {
         token: data.session?.access_token || 'supabase-session',
@@ -218,74 +234,7 @@ export const authService = {
       };
     }
 
-    // Local Mode: check registered accounts registry
-    const accounts = this.getRegisteredAccounts();
-    const existing = accounts.find(a => a.email.toLowerCase() === cleanEmail);
-
-    if (existing) {
-      if (password && existing.passwordHash) {
-        if (simpleHash(password) !== existing.passwordHash) {
-          throw new Error('Mật khẩu không chính xác. Vui lòng thử lại.');
-        }
-      }
-      existing.lastLoginAt = new Date().toISOString();
-      storage.set(REGISTERED_ACCOUNTS_KEY, accounts);
-      storage.set(USER_STORAGE_KEY, existing);
-      return { token: 'demo-token', user: existing };
-    }
-
-    // If matches demo user email
-    if (cleanEmail === DEMO_USER.email.toLowerCase()) {
-      return this.loginAsDemo();
-    }
-
-    // If account doesn't exist on this device in local mode
-    const newUser: UserAccount = {
-      id: `user-${Date.now()}`,
-      email: cleanEmail,
-      name: email.split('@')[0] || 'Học viên StudyOS',
-      role: 'user',
-      educationLevel: 'university',
-      gradeOrYear: 'Năm 2',
-      school: 'Đại học Bách Khoa',
-      major: 'Khoa học Máy tính',
-      studentId: '',
-      bio: '',
-      avatarUrl: '',
-    };
-
-    this.saveToRegistry(newUser, password);
-    storage.set(USER_STORAGE_KEY, newUser);
-    return { token: 'demo-token', user: newUser };
-  },
-
-  /**
-   * Google OAuth Login via Supabase Auth
-   * Standard user authentication only - never asks for Google Drive permissions
-   */
-  async loginWithGoogle(): Promise<void> {
-    if (!supabase || !isSupabaseConfigured) {
-      await ensureSupabaseOnline();
-    }
-
-    if (!supabase || !isSupabaseConfigured) {
-      throw new Error('Supabase chưa được cấu hình. Vui lòng kiểm tra biến môi trường VITE_SUPABASE_URL và VITE_SUPABASE_ANON_KEY.');
-    }
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'select_account',
-        },
-      },
-    });
-
-    if (error) {
-      throw new Error(`Đăng nhập Google thất bại: ${error.message}`);
-    }
+    throw new Error('Chưa kết nối Supabase Cloud. Vui lòng kiểm tra kết nối để đăng nhập.');
   },
 
   /**
@@ -303,17 +252,7 @@ export const authService = {
       return;
     }
 
-    // Local mode mock
-    return new Promise(resolve => setTimeout(resolve, 800));
-  },
-
-  /**
-   * Login as Demo User
-   */
-  async loginAsDemo(): Promise<AuthResponse> {
-    this.saveToRegistry(DEMO_USER, 'demo123');
-    storage.set(USER_STORAGE_KEY, DEMO_USER);
-    return { token: 'demo-token', user: DEMO_USER };
+    throw new Error('Chưa kết nối Supabase Cloud.');
   },
 
   saveToRegistry(user: UserAccount, password?: string): void {
@@ -467,11 +406,34 @@ export const authService = {
     return updated;
   },
 
+  clearAllUserData(): void {
+    const keysToPurge = [
+      USER_STORAGE_KEY,
+      'documents',
+      'subjects',
+      'chapters',
+      'topics',
+      'flashcards',
+      'decks',
+      'questions',
+      'mistakes',
+      'exams',
+      'schedules',
+      'notes',
+      'conversations',
+      'activeConversationId',
+      'notifications',
+      'analytics_events',
+      'analytics_daily',
+    ];
+    keysToPurge.forEach(k => storage.remove(k));
+  },
+
   logout(): void {
     if (supabase && isSupabaseConfigured) {
       supabase.auth.signOut().catch(() => {});
     }
-    storage.remove(USER_STORAGE_KEY);
+    this.clearAllUserData();
   },
 
   isAuthenticated(): boolean {
@@ -479,7 +441,7 @@ export const authService = {
   },
 
   /**
-   * Listen to Supabase auth state changes (e.g. after Google OAuth redirect)
+   * Listen to Supabase auth state changes
    */
   initAuthListener(onUserChange: (user: UserAccount | null) => void) {
     if (supabase && isSupabaseConfigured) {
@@ -511,7 +473,7 @@ export const authService = {
             onUserChange(user);
           }
         } else if (event === 'SIGNED_OUT') {
-          storage.remove(USER_STORAGE_KEY);
+          this.clearAllUserData();
           onUserChange(null);
         }
       });

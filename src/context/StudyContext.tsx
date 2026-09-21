@@ -217,15 +217,22 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (user) {
         setCurrentUser(user);
         setIsAuthenticated(true);
+      } else {
+        authService.clearAllUserData();
+        setCurrentUser(null);
+        setIsAuthenticated(false);
       }
+      triggerDataRefresh();
     });
 
-    // Listen for auth state changes (e.g. Google OAuth redirect)
+    // Listen for auth state changes
     const unsubscribe = authService.initAuthListener((user) => {
       setCurrentUser(user);
       setIsAuthenticated(Boolean(user));
       if (user) {
         setIsAuthModalOpen(false);
+      } else {
+        authService.clearAllUserData();
       }
       triggerDataRefresh();
     });

@@ -16,6 +16,10 @@ async function fileToBase64(file: File): Promise<string> {
 
 export const documentService = {
   async getAllDocuments(): Promise<DocumentItem[]> {
+    if (!authService.isAuthenticated()) {
+      return [];
+    }
+
     if (supabase && isSupabaseConfigured) {
       try {
         const { data, error } = await supabase

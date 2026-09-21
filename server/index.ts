@@ -41,9 +41,11 @@ export async function handleServerRequest(req: IncomingMessage, res: ServerRespo
   }
 
   // Public Client Supabase Config endpoint (to ensure multi-device & Vercel zero-fail connection)
-  if (url === '/api/auth/config') {
+  const pathname = url.split('?')[0];
+  if (pathname === '/api/auth/config' || pathname.endsWith('/auth/config') || url.includes('/api/auth/config')) {
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
     res.end(
       JSON.stringify({
         supabaseUrl: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '',

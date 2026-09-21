@@ -3,25 +3,30 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 const CUSTOM_URL_KEY = 'studyos_custom_supabase_url';
 const CUSTOM_KEY_KEY = 'studyos_custom_supabase_anon_key';
 
-// Statically accessed environment variables (Required by Vite for build-time replacement)
-const STATIC_VITE_URL = import.meta.env?.VITE_SUPABASE_URL || '';
-const STATIC_VITE_KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY || '';
+// Safe accessor that works in both Vite (via define replacement) and Node.js / tsx
+function readEnv(key: 'VITE_SUPABASE_URL' | 'VITE_SUPABASE_ANON_KEY'): string {
+  try {
+    if (key === 'VITE_SUPABASE_URL') {
+      const val = import.meta.env.VITE_SUPABASE_URL;
+      if (val) return val;
+    }
+    if (key === 'VITE_SUPABASE_ANON_KEY') {
+      const val = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      if (val) return val;
+    }
+  } catch {}
 
-const getEnvVar = (key: 'VITE_SUPABASE_URL' | 'VITE_SUPABASE_ANON_KEY'): string => {
-  if (key === 'VITE_SUPABASE_URL') {
-    if (STATIC_VITE_URL) return STATIC_VITE_URL;
-    if (typeof process !== 'undefined' && process.env) {
+  if (typeof process !== 'undefined' && process.env) {
+    if (key === 'VITE_SUPABASE_URL') {
       return process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
     }
-  }
-  if (key === 'VITE_SUPABASE_ANON_KEY') {
-    if (STATIC_VITE_KEY) return STATIC_VITE_KEY;
-    if (typeof process !== 'undefined' && process.env) {
+    if (key === 'VITE_SUPABASE_ANON_KEY') {
       return process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
     }
   }
+
   return '';
-};
+}
 
 export function getStoredCustomSupabaseConfig(): { url: string; anonKey: string } {
   try {
@@ -40,8 +45,8 @@ export function getEffectiveSupabaseConfig(): { url: string; anonKey: string; is
   if (custom.url && custom.anonKey && custom.url.startsWith('https://')) {
     return { url: custom.url, anonKey: custom.anonKey, isCustom: true };
   }
-  const envUrl = getEnvVar('VITE_SUPABASE_URL');
-  const envKey = getEnvVar('VITE_SUPABASE_ANON_KEY');
+  const envUrl = readEnv('VITE_SUPABASE_URL');
+  const envKey = readEnv('VITE_SUPABASE_ANON_KEY');
   return { url: envUrl, anonKey: envKey, isCustom: false };
 }
 
@@ -95,7 +100,10 @@ export async function ensureSupabaseOnline(): Promise<boolean> {
   if (isSupabaseConfigured && supabase) return true;
 
   try {
-    const res = await fetch('/api/auth/config');
+    const res = await fetch('/api/auth/config', {
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    });
     if (res.ok) {
       const data = await res.json();
       if (data.supabaseUrl && data.supabaseAnonKey) {
